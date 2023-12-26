@@ -1,0 +1,23 @@
+
+
+PUT /polls/{id
+}/questions/{id
+}
+
+{
+    "text": "Blabla",
+    "options": [
+        {
+            "text": "Blabla"
+        },
+        {
+            "text": "Blabla 2"
+        },
+        {
+            "text": "Blabla 3"
+        },
+        {
+            "text": "Blabla 4"
+        },
+    ]
+}
