@@ -55,6 +55,11 @@ func IDLTE(id int) predicate.Question {
 	return predicate.Question(sql.FieldLTE(FieldID, id))
 }
 
+// Title applies equality check predicate on the "title" field. It's identical to TitleEQ.
+func Title(v string) predicate.Question {
+	return predicate.Question(sql.FieldEQ(FieldTitle, v))
+}
+
 // Text applies equality check predicate on the "text" field. It's identical to TextEQ.
 func Text(v string) predicate.Question {
 	return predicate.Question(sql.FieldEQ(FieldText, v))
@@ -63,6 +68,11 @@ func Text(v string) predicate.Question {
 // Head applies equality check predicate on the "head" field. It's identical to HeadEQ.
 func Head(v bool) predicate.Question {
 	return predicate.Question(sql.FieldEQ(FieldHead, v))
+}
+
+// Required applies equality check predicate on the "required" field. It's identical to RequiredEQ.
+func Required(v bool) predicate.Question {
+	return predicate.Question(sql.FieldEQ(FieldRequired, v))
 }
 
 // NumOfAnswers applies equality check predicate on the "num_of_answers" field. It's identical to NumOfAnswersEQ.
@@ -83,6 +93,71 @@ func UpdatedAt(v time.Time) predicate.Question {
 // PollID applies equality check predicate on the "poll_id" field. It's identical to PollIDEQ.
 func PollID(v int) predicate.Question {
 	return predicate.Question(sql.FieldEQ(FieldPollID, v))
+}
+
+// TitleEQ applies the EQ predicate on the "title" field.
+func TitleEQ(v string) predicate.Question {
+	return predicate.Question(sql.FieldEQ(FieldTitle, v))
+}
+
+// TitleNEQ applies the NEQ predicate on the "title" field.
+func TitleNEQ(v string) predicate.Question {
+	return predicate.Question(sql.FieldNEQ(FieldTitle, v))
+}
+
+// TitleIn applies the In predicate on the "title" field.
+func TitleIn(vs ...string) predicate.Question {
+	return predicate.Question(sql.FieldIn(FieldTitle, vs...))
+}
+
+// TitleNotIn applies the NotIn predicate on the "title" field.
+func TitleNotIn(vs ...string) predicate.Question {
+	return predicate.Question(sql.FieldNotIn(FieldTitle, vs...))
+}
+
+// TitleGT applies the GT predicate on the "title" field.
+func TitleGT(v string) predicate.Question {
+	return predicate.Question(sql.FieldGT(FieldTitle, v))
+}
+
+// TitleGTE applies the GTE predicate on the "title" field.
+func TitleGTE(v string) predicate.Question {
+	return predicate.Question(sql.FieldGTE(FieldTitle, v))
+}
+
+// TitleLT applies the LT predicate on the "title" field.
+func TitleLT(v string) predicate.Question {
+	return predicate.Question(sql.FieldLT(FieldTitle, v))
+}
+
+// TitleLTE applies the LTE predicate on the "title" field.
+func TitleLTE(v string) predicate.Question {
+	return predicate.Question(sql.FieldLTE(FieldTitle, v))
+}
+
+// TitleContains applies the Contains predicate on the "title" field.
+func TitleContains(v string) predicate.Question {
+	return predicate.Question(sql.FieldContains(FieldTitle, v))
+}
+
+// TitleHasPrefix applies the HasPrefix predicate on the "title" field.
+func TitleHasPrefix(v string) predicate.Question {
+	return predicate.Question(sql.FieldHasPrefix(FieldTitle, v))
+}
+
+// TitleHasSuffix applies the HasSuffix predicate on the "title" field.
+func TitleHasSuffix(v string) predicate.Question {
+	return predicate.Question(sql.FieldHasSuffix(FieldTitle, v))
+}
+
+// TitleEqualFold applies the EqualFold predicate on the "title" field.
+func TitleEqualFold(v string) predicate.Question {
+	return predicate.Question(sql.FieldEqualFold(FieldTitle, v))
+}
+
+// TitleContainsFold applies the ContainsFold predicate on the "title" field.
+func TitleContainsFold(v string) predicate.Question {
+	return predicate.Question(sql.FieldContainsFold(FieldTitle, v))
 }
 
 // TextEQ applies the EQ predicate on the "text" field.
@@ -158,6 +233,16 @@ func HeadEQ(v bool) predicate.Question {
 // HeadNEQ applies the NEQ predicate on the "head" field.
 func HeadNEQ(v bool) predicate.Question {
 	return predicate.Question(sql.FieldNEQ(FieldHead, v))
+}
+
+// RequiredEQ applies the EQ predicate on the "required" field.
+func RequiredEQ(v bool) predicate.Question {
+	return predicate.Question(sql.FieldEQ(FieldRequired, v))
+}
+
+// RequiredNEQ applies the NEQ predicate on the "required" field.
+func RequiredNEQ(v bool) predicate.Question {
+	return predicate.Question(sql.FieldNEQ(FieldRequired, v))
 }
 
 // NumOfAnswersEQ applies the EQ predicate on the "num_of_answers" field.
@@ -384,6 +469,29 @@ func HasPoll() predicate.Question {
 func HasPollWith(preds ...predicate.Poll) predicate.Question {
 	return predicate.Question(func(s *sql.Selector) {
 		step := newPollStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCompletedQuestions applies the HasEdge predicate on the "completed_questions" edge.
+func HasCompletedQuestions() predicate.Question {
+	return predicate.Question(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, CompletedQuestionsTable, CompletedQuestionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCompletedQuestionsWith applies the HasEdge predicate on the "completed_questions" edge with a given conditions (other predicates).
+func HasCompletedQuestionsWith(preds ...predicate.CompletedQuestion) predicate.Question {
+	return predicate.Question(func(s *sql.Selector) {
+		step := newCompletedQuestionsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

@@ -43,20 +43,6 @@ func (qou *QuestionOptionUpdate) SetNillableText(s *string) *QuestionOptionUpdat
 	return qou
 }
 
-// SetChosen sets the "chosen" field.
-func (qou *QuestionOptionUpdate) SetChosen(b bool) *QuestionOptionUpdate {
-	qou.mutation.SetChosen(b)
-	return qou
-}
-
-// SetNillableChosen sets the "chosen" field if the given value is not nil.
-func (qou *QuestionOptionUpdate) SetNillableChosen(b *bool) *QuestionOptionUpdate {
-	if b != nil {
-		qou.SetChosen(*b)
-	}
-	return qou
-}
-
 // SetCreatedAt sets the "created_at" field.
 func (qou *QuestionOptionUpdate) SetCreatedAt(t time.Time) *QuestionOptionUpdate {
 	qou.mutation.SetCreatedAt(t)
@@ -215,9 +201,6 @@ func (qou *QuestionOptionUpdate) sqlSave(ctx context.Context) (n int, err error)
 	if value, ok := qou.mutation.Text(); ok {
 		_spec.SetField(questionoption.FieldText, field.TypeString, value)
 	}
-	if value, ok := qou.mutation.Chosen(); ok {
-		_spec.SetField(questionoption.FieldChosen, field.TypeBool, value)
-	}
 	if value, ok := qou.mutation.CreatedAt(); ok {
 		_spec.SetField(questionoption.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -341,20 +324,6 @@ func (qouo *QuestionOptionUpdateOne) SetText(s string) *QuestionOptionUpdateOne 
 func (qouo *QuestionOptionUpdateOne) SetNillableText(s *string) *QuestionOptionUpdateOne {
 	if s != nil {
 		qouo.SetText(*s)
-	}
-	return qouo
-}
-
-// SetChosen sets the "chosen" field.
-func (qouo *QuestionOptionUpdateOne) SetChosen(b bool) *QuestionOptionUpdateOne {
-	qouo.mutation.SetChosen(b)
-	return qouo
-}
-
-// SetNillableChosen sets the "chosen" field if the given value is not nil.
-func (qouo *QuestionOptionUpdateOne) SetNillableChosen(b *bool) *QuestionOptionUpdateOne {
-	if b != nil {
-		qouo.SetChosen(*b)
 	}
 	return qouo
 }
@@ -546,9 +515,6 @@ func (qouo *QuestionOptionUpdateOne) sqlSave(ctx context.Context) (_node *Questi
 	}
 	if value, ok := qouo.mutation.Text(); ok {
 		_spec.SetField(questionoption.FieldText, field.TypeString, value)
-	}
-	if value, ok := qouo.mutation.Chosen(); ok {
-		_spec.SetField(questionoption.FieldChosen, field.TypeBool, value)
 	}
 	if value, ok := qouo.mutation.CreatedAt(); ok {
 		_spec.SetField(questionoption.FieldCreatedAt, field.TypeTime, value)

@@ -9,6 +9,7 @@ import (
 	"math"
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 
 	"entgo.io/ent/dialect/sql"
@@ -19,11 +20,12 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx        *QueryContext
-	order      []user.OrderOption
-	inters     []Interceptor
-	predicates []predicate.User
-	withPolls  *PollQuery
+	ctx              *QueryContext
+	order            []user.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.User
+	withPolls        *PollQuery
+	withStartedPolls *StartedPollQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -75,6 +77,28 @@ func (uq *UserQuery) QueryPolls() *PollQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(poll.Table, poll.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.PollsTable, user.PollsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryStartedPolls chains the current query on the "started_polls" edge.
+func (uq *UserQuery) QueryStartedPolls() *StartedPollQuery {
+	query := (&StartedPollClient{config: uq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(startedpoll.Table, startedpoll.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.StartedPollsTable, user.StartedPollsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
 		return fromU, nil
@@ -269,12 +293,13 @@ func (uq *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:     uq.config,
-		ctx:        uq.ctx.Clone(),
-		order:      append([]user.OrderOption{}, uq.order...),
-		inters:     append([]Interceptor{}, uq.inters...),
-		predicates: append([]predicate.User{}, uq.predicates...),
-		withPolls:  uq.withPolls.Clone(),
+		config:           uq.config,
+		ctx:              uq.ctx.Clone(),
+		order:            append([]user.OrderOption{}, uq.order...),
+		inters:           append([]Interceptor{}, uq.inters...),
+		predicates:       append([]predicate.User{}, uq.predicates...),
+		withPolls:        uq.withPolls.Clone(),
+		withStartedPolls: uq.withStartedPolls.Clone(),
 		// clone intermediate query.
 		sql:  uq.sql.Clone(),
 		path: uq.path,
@@ -289,6 +314,17 @@ func (uq *UserQuery) WithPolls(opts ...func(*PollQuery)) *UserQuery {
 		opt(query)
 	}
 	uq.withPolls = query
+	return uq
+}
+
+// WithStartedPolls tells the query-builder to eager-load the nodes that are connected to
+// the "started_polls" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithStartedPolls(opts ...func(*StartedPollQuery)) *UserQuery {
+	query := (&StartedPollClient{config: uq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withStartedPolls = query
 	return uq
 }
 
@@ -370,8 +406,9 @@ func (uq *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = uq.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			uq.withPolls != nil,
+			uq.withStartedPolls != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -396,6 +433,13 @@ func (uq *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := uq.loadPolls(ctx, query, nodes,
 			func(n *User) { n.Edges.Polls = []*Poll{} },
 			func(n *User, e *Poll) { n.Edges.Polls = append(n.Edges.Polls, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := uq.withStartedPolls; query != nil {
+		if err := uq.loadStartedPolls(ctx, query, nodes,
+			func(n *User) { n.Edges.StartedPolls = []*StartedPoll{} },
+			func(n *User, e *StartedPoll) { n.Edges.StartedPolls = append(n.Edges.StartedPolls, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -427,6 +471,36 @@ func (uq *UserQuery) loadPolls(ctx context.Context, query *PollQuery, nodes []*U
 		node, ok := nodeids[fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "creator_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (uq *UserQuery) loadStartedPolls(ctx context.Context, query *StartedPollQuery, nodes []*User, init func(*User), assign func(*User, *StartedPoll)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(startedpoll.FieldUserID)
+	}
+	query.Where(predicate.StartedPoll(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.StartedPollsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

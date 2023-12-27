@@ -9,6 +9,7 @@ import (
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
 	"poll-app/ent/question"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 	"time"
 
@@ -54,20 +55,6 @@ func (pu *PollUpdate) SetDescription(s string) *PollUpdate {
 func (pu *PollUpdate) SetNillableDescription(s *string) *PollUpdate {
 	if s != nil {
 		pu.SetDescription(*s)
-	}
-	return pu
-}
-
-// SetCompleted sets the "completed" field.
-func (pu *PollUpdate) SetCompleted(b bool) *PollUpdate {
-	pu.mutation.SetCompleted(b)
-	return pu
-}
-
-// SetNillableCompleted sets the "completed" field if the given value is not nil.
-func (pu *PollUpdate) SetNillableCompleted(b *bool) *PollUpdate {
-	if b != nil {
-		pu.SetCompleted(*b)
 	}
 	return pu
 }
@@ -134,6 +121,21 @@ func (pu *PollUpdate) AddQuestions(q ...*Question) *PollUpdate {
 	return pu.AddQuestionIDs(ids...)
 }
 
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by IDs.
+func (pu *PollUpdate) AddStartedPollIDs(ids ...int) *PollUpdate {
+	pu.mutation.AddStartedPollIDs(ids...)
+	return pu
+}
+
+// AddStartedPolls adds the "started_polls" edges to the StartedPoll entity.
+func (pu *PollUpdate) AddStartedPolls(s ...*StartedPoll) *PollUpdate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return pu.AddStartedPollIDs(ids...)
+}
+
 // Mutation returns the PollMutation object of the builder.
 func (pu *PollUpdate) Mutation() *PollMutation {
 	return pu.mutation
@@ -164,6 +166,27 @@ func (pu *PollUpdate) RemoveQuestions(q ...*Question) *PollUpdate {
 		ids[i] = q[i].ID
 	}
 	return pu.RemoveQuestionIDs(ids...)
+}
+
+// ClearStartedPolls clears all "started_polls" edges to the StartedPoll entity.
+func (pu *PollUpdate) ClearStartedPolls() *PollUpdate {
+	pu.mutation.ClearStartedPolls()
+	return pu
+}
+
+// RemoveStartedPollIDs removes the "started_polls" edge to StartedPoll entities by IDs.
+func (pu *PollUpdate) RemoveStartedPollIDs(ids ...int) *PollUpdate {
+	pu.mutation.RemoveStartedPollIDs(ids...)
+	return pu
+}
+
+// RemoveStartedPolls removes "started_polls" edges to StartedPoll entities.
+func (pu *PollUpdate) RemoveStartedPolls(s ...*StartedPoll) *PollUpdate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return pu.RemoveStartedPollIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -218,9 +241,6 @@ func (pu *PollUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := pu.mutation.Description(); ok {
 		_spec.SetField(poll.FieldDescription, field.TypeString, value)
-	}
-	if value, ok := pu.mutation.Completed(); ok {
-		_spec.SetField(poll.FieldCompleted, field.TypeBool, value)
 	}
 	if value, ok := pu.mutation.CreatedAt(); ok {
 		_spec.SetField(poll.FieldCreatedAt, field.TypeTime, value)
@@ -302,6 +322,51 @@ func (pu *PollUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if pu.mutation.StartedPollsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.RemovedStartedPollsIDs(); len(nodes) > 0 && !pu.mutation.StartedPollsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.StartedPollsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, pu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{poll.Label}
@@ -346,20 +411,6 @@ func (puo *PollUpdateOne) SetDescription(s string) *PollUpdateOne {
 func (puo *PollUpdateOne) SetNillableDescription(s *string) *PollUpdateOne {
 	if s != nil {
 		puo.SetDescription(*s)
-	}
-	return puo
-}
-
-// SetCompleted sets the "completed" field.
-func (puo *PollUpdateOne) SetCompleted(b bool) *PollUpdateOne {
-	puo.mutation.SetCompleted(b)
-	return puo
-}
-
-// SetNillableCompleted sets the "completed" field if the given value is not nil.
-func (puo *PollUpdateOne) SetNillableCompleted(b *bool) *PollUpdateOne {
-	if b != nil {
-		puo.SetCompleted(*b)
 	}
 	return puo
 }
@@ -426,6 +477,21 @@ func (puo *PollUpdateOne) AddQuestions(q ...*Question) *PollUpdateOne {
 	return puo.AddQuestionIDs(ids...)
 }
 
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by IDs.
+func (puo *PollUpdateOne) AddStartedPollIDs(ids ...int) *PollUpdateOne {
+	puo.mutation.AddStartedPollIDs(ids...)
+	return puo
+}
+
+// AddStartedPolls adds the "started_polls" edges to the StartedPoll entity.
+func (puo *PollUpdateOne) AddStartedPolls(s ...*StartedPoll) *PollUpdateOne {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return puo.AddStartedPollIDs(ids...)
+}
+
 // Mutation returns the PollMutation object of the builder.
 func (puo *PollUpdateOne) Mutation() *PollMutation {
 	return puo.mutation
@@ -456,6 +522,27 @@ func (puo *PollUpdateOne) RemoveQuestions(q ...*Question) *PollUpdateOne {
 		ids[i] = q[i].ID
 	}
 	return puo.RemoveQuestionIDs(ids...)
+}
+
+// ClearStartedPolls clears all "started_polls" edges to the StartedPoll entity.
+func (puo *PollUpdateOne) ClearStartedPolls() *PollUpdateOne {
+	puo.mutation.ClearStartedPolls()
+	return puo
+}
+
+// RemoveStartedPollIDs removes the "started_polls" edge to StartedPoll entities by IDs.
+func (puo *PollUpdateOne) RemoveStartedPollIDs(ids ...int) *PollUpdateOne {
+	puo.mutation.RemoveStartedPollIDs(ids...)
+	return puo
+}
+
+// RemoveStartedPolls removes "started_polls" edges to StartedPoll entities.
+func (puo *PollUpdateOne) RemoveStartedPolls(s ...*StartedPoll) *PollUpdateOne {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return puo.RemoveStartedPollIDs(ids...)
 }
 
 // Where appends a list predicates to the PollUpdate builder.
@@ -541,9 +628,6 @@ func (puo *PollUpdateOne) sqlSave(ctx context.Context) (_node *Poll, err error) 
 	if value, ok := puo.mutation.Description(); ok {
 		_spec.SetField(poll.FieldDescription, field.TypeString, value)
 	}
-	if value, ok := puo.mutation.Completed(); ok {
-		_spec.SetField(poll.FieldCompleted, field.TypeBool, value)
-	}
 	if value, ok := puo.mutation.CreatedAt(); ok {
 		_spec.SetField(poll.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -617,6 +701,51 @@ func (puo *PollUpdateOne) sqlSave(ctx context.Context) (_node *Poll, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(question.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if puo.mutation.StartedPollsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.RemovedStartedPollsIDs(); len(nodes) > 0 && !puo.mutation.StartedPollsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.StartedPollsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

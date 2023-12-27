@@ -18,8 +18,6 @@ const (
 	FieldTitle = "title"
 	// FieldDescription holds the string denoting the description field in the database.
 	FieldDescription = "description"
-	// FieldCompleted holds the string denoting the completed field in the database.
-	FieldCompleted = "completed"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -30,6 +28,8 @@ const (
 	EdgeCreator = "creator"
 	// EdgeQuestions holds the string denoting the questions edge name in mutations.
 	EdgeQuestions = "questions"
+	// EdgeStartedPolls holds the string denoting the started_polls edge name in mutations.
+	EdgeStartedPolls = "started_polls"
 	// Table holds the table name of the poll in the database.
 	Table = "polls"
 	// CreatorTable is the table that holds the creator relation/edge.
@@ -46,6 +46,13 @@ const (
 	QuestionsInverseTable = "questions"
 	// QuestionsColumn is the table column denoting the questions relation/edge.
 	QuestionsColumn = "poll_id"
+	// StartedPollsTable is the table that holds the started_polls relation/edge.
+	StartedPollsTable = "started_polls"
+	// StartedPollsInverseTable is the table name for the StartedPoll entity.
+	// It exists in this package in order to avoid circular dependency with the "startedpoll" package.
+	StartedPollsInverseTable = "started_polls"
+	// StartedPollsColumn is the table column denoting the started_polls relation/edge.
+	StartedPollsColumn = "poll_id"
 )
 
 // Columns holds all SQL columns for poll fields.
@@ -53,7 +60,6 @@ var Columns = []string{
 	FieldID,
 	FieldTitle,
 	FieldDescription,
-	FieldCompleted,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldCreatorID,
@@ -70,8 +76,6 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// DefaultCompleted holds the default value on creation for the "completed" field.
-	DefaultCompleted bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -94,11 +98,6 @@ func ByTitle(opts ...sql.OrderTermOption) OrderOption {
 // ByDescription orders the results by the description field.
 func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDescription, opts...).ToFunc()
-}
-
-// ByCompleted orders the results by the completed field.
-func ByCompleted(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldCompleted, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.
@@ -136,6 +135,20 @@ func ByQuestions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newQuestionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByStartedPollsCount orders the results by started_polls count.
+func ByStartedPollsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newStartedPollsStep(), opts...)
+	}
+}
+
+// ByStartedPolls orders the results by started_polls terms.
+func ByStartedPolls(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newStartedPollsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newCreatorStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -148,5 +161,12 @@ func newQuestionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(QuestionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, QuestionsTable, QuestionsColumn),
+	)
+}
+func newStartedPollsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(StartedPollsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, StartedPollsTable, StartedPollsColumn),
 	)
 }

@@ -8,6 +8,18 @@ import (
 	"poll-app/ent"
 )
 
+// The CompletedQuestionFunc type is an adapter to allow the use of ordinary
+// function as CompletedQuestion mutator.
+type CompletedQuestionFunc func(context.Context, *ent.CompletedQuestionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CompletedQuestionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CompletedQuestionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CompletedQuestionMutation", m)
+}
+
 // The PollFunc type is an adapter to allow the use of ordinary
 // function as Poll mutator.
 type PollFunc func(context.Context, *ent.PollMutation) (ent.Value, error)
@@ -42,6 +54,18 @@ func (f QuestionOptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.QuestionOptionMutation", m)
+}
+
+// The StartedPollFunc type is an adapter to allow the use of ordinary
+// function as StartedPoll mutator.
+type StartedPollFunc func(context.Context, *ent.StartedPollMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f StartedPollFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.StartedPollMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.StartedPollMutation", m)
 }
 
 // The UserFunc type is an adapter to allow the use of ordinary

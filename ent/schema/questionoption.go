@@ -17,20 +17,16 @@ type QuestionOption struct {
 func (QuestionOption) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("text"),
-		field.Bool("chosen").Default(false),
 		field.Time("created_at").Default(time.Now).StructTag(`json:"-"`),
 		field.Time("updated_at").Default(time.Now).StructTag(`json:"-"`),
 		field.Int("question_id"),
-		// field.Int("next_option_id").Optional(),
 	}
 }
 
 // Edges of the QuestionOption.
 func (QuestionOption) Edges() []ent.Edge {
 	return []ent.Edge{
-		edge.To("next_option", QuestionOption.Type).Unique().
-			// Field("next_option_id")
-			From("next_option_inv").Unique(),
+		edge.To("next_option", QuestionOption.Type).Unique().From("next_option_inv").Unique(),
 		edge.From("question", Question.Type).Ref("options").Field("question_id").Required().Unique(),
 	}
 }

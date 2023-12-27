@@ -18,13 +18,14 @@ func CreateQuestion(persistence *repository.PersistenceContext, pollID int, ques
 		SetPollID(pollID).
 		SetText(questionRequest.Text).
 		SetNumOfAnswers(questionRequest.NumOfAnswers).
+		SetRequired(questionRequest.Required).
 		Save(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	options, err := createQuestionOptions(ctx, persistence, question.ID, questionRequest.Options)
+	options, err := CreateQuestionOptions(ctx, persistence, question.ID, questionRequest.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +44,29 @@ func createQuestionBuilder(persistence *repository.PersistenceContext, pollID in
 	return question
 }
 
-// createQuestionOptions creates question options of a particular question
-func createQuestionOptions(context context.Context, persistence *repository.PersistenceContext, questionID int, optionReqs []models.OptionRequest) ([]*ent.QuestionOption, error) {
+// CreateQuestionOptions creates question options of a particular question
+func CreateQuestionOptions(context context.Context, persistence *repository.PersistenceContext, questionID int, optionReqs []models.OptionRequest) ([]*ent.QuestionOption, error) {
+	var optionBuilders []*ent.QuestionOptionCreate
+
+	for _, optionReq := range optionReqs {
+		optionBuilders = append(optionBuilders, persistence.UserPersistence.PersistenceClient.QuestionOption.Create().
+			SetText(optionReq.Text).
+			SetQuestionID(questionID))
+	}
+
+	options, err := persistence.PollPersistence.PersistenceClient.QuestionOption.CreateBulk(optionBuilders...).Save(context)
+	if err != nil {
+		return nil, err
+	}
+
+	return options, nil
+}
+
+// CreateQuestionOptionsWithoutContext creates question options of a particular question
+func CreateQuestionOptionsWithoutContext(persistence *repository.PersistenceContext, questionID int, optionReqs []models.OptionRequest) ([]*ent.QuestionOption, error) {
+	context, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	var optionBuilders []*ent.QuestionOptionCreate
 
 	for _, optionReq := range optionReqs {

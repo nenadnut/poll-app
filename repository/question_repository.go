@@ -6,6 +6,7 @@ import "poll-app/ent"
 type QuestionRepository interface {
 	Client() *ent.Client
 	FindByID(id int) (*ent.Question, error)
+	FindRequiredByPollID(pollID int) ([]*ent.Question, error)
 	UpdateByID(id int, questionUpdate *ent.QuestionUpdateOne) (*ent.Question, error)
 	DeleteByID(id int) error
 }

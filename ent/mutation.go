@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"poll-app/ent/completedquestion"
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
 	"poll-app/ent/question"
 	"poll-app/ent/questionoption"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 	"sync"
 	"time"
@@ -27,32 +29,697 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypePoll           = "Poll"
-	TypeQuestion       = "Question"
-	TypeQuestionOption = "QuestionOption"
-	TypeUser           = "User"
+	TypeCompletedQuestion = "CompletedQuestion"
+	TypePoll              = "Poll"
+	TypeQuestion          = "Question"
+	TypeQuestionOption    = "QuestionOption"
+	TypeStartedPoll       = "StartedPoll"
+	TypeUser              = "User"
 )
+
+// CompletedQuestionMutation represents an operation that mutates the CompletedQuestion nodes in the graph.
+type CompletedQuestionMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int
+	answers             *[]int
+	appendanswers       []int
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	started_poll        *int
+	clearedstarted_poll bool
+	question            *int
+	clearedquestion     bool
+	done                bool
+	oldValue            func(context.Context) (*CompletedQuestion, error)
+	predicates          []predicate.CompletedQuestion
+}
+
+var _ ent.Mutation = (*CompletedQuestionMutation)(nil)
+
+// completedquestionOption allows management of the mutation configuration using functional options.
+type completedquestionOption func(*CompletedQuestionMutation)
+
+// newCompletedQuestionMutation creates new mutation for the CompletedQuestion entity.
+func newCompletedQuestionMutation(c config, op Op, opts ...completedquestionOption) *CompletedQuestionMutation {
+	m := &CompletedQuestionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCompletedQuestion,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCompletedQuestionID sets the ID field of the mutation.
+func withCompletedQuestionID(id int) completedquestionOption {
+	return func(m *CompletedQuestionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CompletedQuestion
+		)
+		m.oldValue = func(ctx context.Context) (*CompletedQuestion, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CompletedQuestion.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCompletedQuestion sets the old CompletedQuestion of the mutation.
+func withCompletedQuestion(node *CompletedQuestion) completedquestionOption {
+	return func(m *CompletedQuestionMutation) {
+		m.oldValue = func(context.Context) (*CompletedQuestion, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CompletedQuestionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CompletedQuestionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CompletedQuestionMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CompletedQuestionMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CompletedQuestion.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetStartedPollID sets the "started_poll_id" field.
+func (m *CompletedQuestionMutation) SetStartedPollID(i int) {
+	m.started_poll = &i
+}
+
+// StartedPollID returns the value of the "started_poll_id" field in the mutation.
+func (m *CompletedQuestionMutation) StartedPollID() (r int, exists bool) {
+	v := m.started_poll
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartedPollID returns the old "started_poll_id" field's value of the CompletedQuestion entity.
+// If the CompletedQuestion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CompletedQuestionMutation) OldStartedPollID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartedPollID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartedPollID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartedPollID: %w", err)
+	}
+	return oldValue.StartedPollID, nil
+}
+
+// ResetStartedPollID resets all changes to the "started_poll_id" field.
+func (m *CompletedQuestionMutation) ResetStartedPollID() {
+	m.started_poll = nil
+}
+
+// SetQuestionID sets the "question_id" field.
+func (m *CompletedQuestionMutation) SetQuestionID(i int) {
+	m.question = &i
+}
+
+// QuestionID returns the value of the "question_id" field in the mutation.
+func (m *CompletedQuestionMutation) QuestionID() (r int, exists bool) {
+	v := m.question
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuestionID returns the old "question_id" field's value of the CompletedQuestion entity.
+// If the CompletedQuestion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CompletedQuestionMutation) OldQuestionID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuestionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuestionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuestionID: %w", err)
+	}
+	return oldValue.QuestionID, nil
+}
+
+// ResetQuestionID resets all changes to the "question_id" field.
+func (m *CompletedQuestionMutation) ResetQuestionID() {
+	m.question = nil
+}
+
+// SetAnswers sets the "answers" field.
+func (m *CompletedQuestionMutation) SetAnswers(i []int) {
+	m.answers = &i
+	m.appendanswers = nil
+}
+
+// Answers returns the value of the "answers" field in the mutation.
+func (m *CompletedQuestionMutation) Answers() (r []int, exists bool) {
+	v := m.answers
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAnswers returns the old "answers" field's value of the CompletedQuestion entity.
+// If the CompletedQuestion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CompletedQuestionMutation) OldAnswers(ctx context.Context) (v []int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAnswers is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAnswers requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAnswers: %w", err)
+	}
+	return oldValue.Answers, nil
+}
+
+// AppendAnswers adds i to the "answers" field.
+func (m *CompletedQuestionMutation) AppendAnswers(i []int) {
+	m.appendanswers = append(m.appendanswers, i...)
+}
+
+// AppendedAnswers returns the list of values that were appended to the "answers" field in this mutation.
+func (m *CompletedQuestionMutation) AppendedAnswers() ([]int, bool) {
+	if len(m.appendanswers) == 0 {
+		return nil, false
+	}
+	return m.appendanswers, true
+}
+
+// ResetAnswers resets all changes to the "answers" field.
+func (m *CompletedQuestionMutation) ResetAnswers() {
+	m.answers = nil
+	m.appendanswers = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CompletedQuestionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CompletedQuestionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CompletedQuestion entity.
+// If the CompletedQuestion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CompletedQuestionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CompletedQuestionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CompletedQuestionMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CompletedQuestionMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CompletedQuestion entity.
+// If the CompletedQuestion object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CompletedQuestionMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CompletedQuestionMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearStartedPoll clears the "started_poll" edge to the StartedPoll entity.
+func (m *CompletedQuestionMutation) ClearStartedPoll() {
+	m.clearedstarted_poll = true
+	m.clearedFields[completedquestion.FieldStartedPollID] = struct{}{}
+}
+
+// StartedPollCleared reports if the "started_poll" edge to the StartedPoll entity was cleared.
+func (m *CompletedQuestionMutation) StartedPollCleared() bool {
+	return m.clearedstarted_poll
+}
+
+// StartedPollIDs returns the "started_poll" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// StartedPollID instead. It exists only for internal usage by the builders.
+func (m *CompletedQuestionMutation) StartedPollIDs() (ids []int) {
+	if id := m.started_poll; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetStartedPoll resets all changes to the "started_poll" edge.
+func (m *CompletedQuestionMutation) ResetStartedPoll() {
+	m.started_poll = nil
+	m.clearedstarted_poll = false
+}
+
+// ClearQuestion clears the "question" edge to the Question entity.
+func (m *CompletedQuestionMutation) ClearQuestion() {
+	m.clearedquestion = true
+	m.clearedFields[completedquestion.FieldQuestionID] = struct{}{}
+}
+
+// QuestionCleared reports if the "question" edge to the Question entity was cleared.
+func (m *CompletedQuestionMutation) QuestionCleared() bool {
+	return m.clearedquestion
+}
+
+// QuestionIDs returns the "question" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// QuestionID instead. It exists only for internal usage by the builders.
+func (m *CompletedQuestionMutation) QuestionIDs() (ids []int) {
+	if id := m.question; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetQuestion resets all changes to the "question" edge.
+func (m *CompletedQuestionMutation) ResetQuestion() {
+	m.question = nil
+	m.clearedquestion = false
+}
+
+// Where appends a list predicates to the CompletedQuestionMutation builder.
+func (m *CompletedQuestionMutation) Where(ps ...predicate.CompletedQuestion) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CompletedQuestionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CompletedQuestionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CompletedQuestion, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CompletedQuestionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CompletedQuestionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CompletedQuestion).
+func (m *CompletedQuestionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CompletedQuestionMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.started_poll != nil {
+		fields = append(fields, completedquestion.FieldStartedPollID)
+	}
+	if m.question != nil {
+		fields = append(fields, completedquestion.FieldQuestionID)
+	}
+	if m.answers != nil {
+		fields = append(fields, completedquestion.FieldAnswers)
+	}
+	if m.created_at != nil {
+		fields = append(fields, completedquestion.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, completedquestion.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CompletedQuestionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case completedquestion.FieldStartedPollID:
+		return m.StartedPollID()
+	case completedquestion.FieldQuestionID:
+		return m.QuestionID()
+	case completedquestion.FieldAnswers:
+		return m.Answers()
+	case completedquestion.FieldCreatedAt:
+		return m.CreatedAt()
+	case completedquestion.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CompletedQuestionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case completedquestion.FieldStartedPollID:
+		return m.OldStartedPollID(ctx)
+	case completedquestion.FieldQuestionID:
+		return m.OldQuestionID(ctx)
+	case completedquestion.FieldAnswers:
+		return m.OldAnswers(ctx)
+	case completedquestion.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case completedquestion.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown CompletedQuestion field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CompletedQuestionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case completedquestion.FieldStartedPollID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartedPollID(v)
+		return nil
+	case completedquestion.FieldQuestionID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuestionID(v)
+		return nil
+	case completedquestion.FieldAnswers:
+		v, ok := value.([]int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAnswers(v)
+		return nil
+	case completedquestion.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case completedquestion.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CompletedQuestion field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CompletedQuestionMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CompletedQuestionMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CompletedQuestionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CompletedQuestion numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CompletedQuestionMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CompletedQuestionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CompletedQuestionMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CompletedQuestion nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CompletedQuestionMutation) ResetField(name string) error {
+	switch name {
+	case completedquestion.FieldStartedPollID:
+		m.ResetStartedPollID()
+		return nil
+	case completedquestion.FieldQuestionID:
+		m.ResetQuestionID()
+		return nil
+	case completedquestion.FieldAnswers:
+		m.ResetAnswers()
+		return nil
+	case completedquestion.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case completedquestion.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown CompletedQuestion field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CompletedQuestionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.started_poll != nil {
+		edges = append(edges, completedquestion.EdgeStartedPoll)
+	}
+	if m.question != nil {
+		edges = append(edges, completedquestion.EdgeQuestion)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CompletedQuestionMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case completedquestion.EdgeStartedPoll:
+		if id := m.started_poll; id != nil {
+			return []ent.Value{*id}
+		}
+	case completedquestion.EdgeQuestion:
+		if id := m.question; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CompletedQuestionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CompletedQuestionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CompletedQuestionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedstarted_poll {
+		edges = append(edges, completedquestion.EdgeStartedPoll)
+	}
+	if m.clearedquestion {
+		edges = append(edges, completedquestion.EdgeQuestion)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CompletedQuestionMutation) EdgeCleared(name string) bool {
+	switch name {
+	case completedquestion.EdgeStartedPoll:
+		return m.clearedstarted_poll
+	case completedquestion.EdgeQuestion:
+		return m.clearedquestion
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CompletedQuestionMutation) ClearEdge(name string) error {
+	switch name {
+	case completedquestion.EdgeStartedPoll:
+		m.ClearStartedPoll()
+		return nil
+	case completedquestion.EdgeQuestion:
+		m.ClearQuestion()
+		return nil
+	}
+	return fmt.Errorf("unknown CompletedQuestion unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CompletedQuestionMutation) ResetEdge(name string) error {
+	switch name {
+	case completedquestion.EdgeStartedPoll:
+		m.ResetStartedPoll()
+		return nil
+	case completedquestion.EdgeQuestion:
+		m.ResetQuestion()
+		return nil
+	}
+	return fmt.Errorf("unknown CompletedQuestion edge %s", name)
+}
 
 // PollMutation represents an operation that mutates the Poll nodes in the graph.
 type PollMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *int
-	title            *string
-	description      *string
-	completed        *bool
-	created_at       *time.Time
-	updated_at       *time.Time
-	clearedFields    map[string]struct{}
-	creator          *int
-	clearedcreator   bool
-	questions        map[int]struct{}
-	removedquestions map[int]struct{}
-	clearedquestions bool
-	done             bool
-	oldValue         func(context.Context) (*Poll, error)
-	predicates       []predicate.Poll
+	op                   Op
+	typ                  string
+	id                   *int
+	title                *string
+	description          *string
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	creator              *int
+	clearedcreator       bool
+	questions            map[int]struct{}
+	removedquestions     map[int]struct{}
+	clearedquestions     bool
+	started_polls        map[int]struct{}
+	removedstarted_polls map[int]struct{}
+	clearedstarted_polls bool
+	done                 bool
+	oldValue             func(context.Context) (*Poll, error)
+	predicates           []predicate.Poll
 }
 
 var _ ent.Mutation = (*PollMutation)(nil)
@@ -223,42 +890,6 @@ func (m *PollMutation) OldDescription(ctx context.Context) (v string, err error)
 // ResetDescription resets all changes to the "description" field.
 func (m *PollMutation) ResetDescription() {
 	m.description = nil
-}
-
-// SetCompleted sets the "completed" field.
-func (m *PollMutation) SetCompleted(b bool) {
-	m.completed = &b
-}
-
-// Completed returns the value of the "completed" field in the mutation.
-func (m *PollMutation) Completed() (r bool, exists bool) {
-	v := m.completed
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCompleted returns the old "completed" field's value of the Poll entity.
-// If the Poll object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *PollMutation) OldCompleted(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCompleted is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCompleted requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCompleted: %w", err)
-	}
-	return oldValue.Completed, nil
-}
-
-// ResetCompleted resets all changes to the "completed" field.
-func (m *PollMutation) ResetCompleted() {
-	m.completed = nil
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -450,6 +1081,60 @@ func (m *PollMutation) ResetQuestions() {
 	m.removedquestions = nil
 }
 
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by ids.
+func (m *PollMutation) AddStartedPollIDs(ids ...int) {
+	if m.started_polls == nil {
+		m.started_polls = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.started_polls[ids[i]] = struct{}{}
+	}
+}
+
+// ClearStartedPolls clears the "started_polls" edge to the StartedPoll entity.
+func (m *PollMutation) ClearStartedPolls() {
+	m.clearedstarted_polls = true
+}
+
+// StartedPollsCleared reports if the "started_polls" edge to the StartedPoll entity was cleared.
+func (m *PollMutation) StartedPollsCleared() bool {
+	return m.clearedstarted_polls
+}
+
+// RemoveStartedPollIDs removes the "started_polls" edge to the StartedPoll entity by IDs.
+func (m *PollMutation) RemoveStartedPollIDs(ids ...int) {
+	if m.removedstarted_polls == nil {
+		m.removedstarted_polls = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.started_polls, ids[i])
+		m.removedstarted_polls[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedStartedPolls returns the removed IDs of the "started_polls" edge to the StartedPoll entity.
+func (m *PollMutation) RemovedStartedPollsIDs() (ids []int) {
+	for id := range m.removedstarted_polls {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// StartedPollsIDs returns the "started_polls" edge IDs in the mutation.
+func (m *PollMutation) StartedPollsIDs() (ids []int) {
+	for id := range m.started_polls {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetStartedPolls resets all changes to the "started_polls" edge.
+func (m *PollMutation) ResetStartedPolls() {
+	m.started_polls = nil
+	m.clearedstarted_polls = false
+	m.removedstarted_polls = nil
+}
+
 // Where appends a list predicates to the PollMutation builder.
 func (m *PollMutation) Where(ps ...predicate.Poll) {
 	m.predicates = append(m.predicates, ps...)
@@ -484,15 +1169,12 @@ func (m *PollMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PollMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 5)
 	if m.title != nil {
 		fields = append(fields, poll.FieldTitle)
 	}
 	if m.description != nil {
 		fields = append(fields, poll.FieldDescription)
-	}
-	if m.completed != nil {
-		fields = append(fields, poll.FieldCompleted)
 	}
 	if m.created_at != nil {
 		fields = append(fields, poll.FieldCreatedAt)
@@ -515,8 +1197,6 @@ func (m *PollMutation) Field(name string) (ent.Value, bool) {
 		return m.Title()
 	case poll.FieldDescription:
 		return m.Description()
-	case poll.FieldCompleted:
-		return m.Completed()
 	case poll.FieldCreatedAt:
 		return m.CreatedAt()
 	case poll.FieldUpdatedAt:
@@ -536,8 +1216,6 @@ func (m *PollMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTitle(ctx)
 	case poll.FieldDescription:
 		return m.OldDescription(ctx)
-	case poll.FieldCompleted:
-		return m.OldCompleted(ctx)
 	case poll.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case poll.FieldUpdatedAt:
@@ -566,13 +1244,6 @@ func (m *PollMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDescription(v)
-		return nil
-	case poll.FieldCompleted:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCompleted(v)
 		return nil
 	case poll.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -653,9 +1324,6 @@ func (m *PollMutation) ResetField(name string) error {
 	case poll.FieldDescription:
 		m.ResetDescription()
 		return nil
-	case poll.FieldCompleted:
-		m.ResetCompleted()
-		return nil
 	case poll.FieldCreatedAt:
 		m.ResetCreatedAt()
 		return nil
@@ -671,12 +1339,15 @@ func (m *PollMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *PollMutation) AddedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.creator != nil {
 		edges = append(edges, poll.EdgeCreator)
 	}
 	if m.questions != nil {
 		edges = append(edges, poll.EdgeQuestions)
+	}
+	if m.started_polls != nil {
+		edges = append(edges, poll.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -695,15 +1366,24 @@ func (m *PollMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case poll.EdgeStartedPolls:
+		ids := make([]ent.Value, 0, len(m.started_polls))
+		for id := range m.started_polls {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *PollMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.removedquestions != nil {
 		edges = append(edges, poll.EdgeQuestions)
+	}
+	if m.removedstarted_polls != nil {
+		edges = append(edges, poll.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -718,18 +1398,27 @@ func (m *PollMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case poll.EdgeStartedPolls:
+		ids := make([]ent.Value, 0, len(m.removedstarted_polls))
+		for id := range m.removedstarted_polls {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *PollMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.clearedcreator {
 		edges = append(edges, poll.EdgeCreator)
 	}
 	if m.clearedquestions {
 		edges = append(edges, poll.EdgeQuestions)
+	}
+	if m.clearedstarted_polls {
+		edges = append(edges, poll.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -742,6 +1431,8 @@ func (m *PollMutation) EdgeCleared(name string) bool {
 		return m.clearedcreator
 	case poll.EdgeQuestions:
 		return m.clearedquestions
+	case poll.EdgeStartedPolls:
+		return m.clearedstarted_polls
 	}
 	return false
 }
@@ -767,6 +1458,9 @@ func (m *PollMutation) ResetEdge(name string) error {
 	case poll.EdgeQuestions:
 		m.ResetQuestions()
 		return nil
+	case poll.EdgeStartedPolls:
+		m.ResetStartedPolls()
+		return nil
 	}
 	return fmt.Errorf("unknown Poll edge %s", name)
 }
@@ -774,29 +1468,34 @@ func (m *PollMutation) ResetEdge(name string) error {
 // QuestionMutation represents an operation that mutates the Question nodes in the graph.
 type QuestionMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *int
-	text                     *string
-	head                     *bool
-	num_of_answers           *int
-	addnum_of_answers        *int
-	created_at               *time.Time
-	updated_at               *time.Time
-	clearedFields            map[string]struct{}
-	options                  map[int]struct{}
-	removedoptions           map[int]struct{}
-	clearedoptions           bool
-	next_question_inv        map[int]struct{}
-	removednext_question_inv map[int]struct{}
-	clearednext_question_inv bool
-	next_question            *int
-	clearednext_question     bool
-	poll                     *int
-	clearedpoll              bool
-	done                     bool
-	oldValue                 func(context.Context) (*Question, error)
-	predicates               []predicate.Question
+	op                         Op
+	typ                        string
+	id                         *int
+	title                      *string
+	text                       *string
+	head                       *bool
+	required                   *bool
+	num_of_answers             *int
+	addnum_of_answers          *int
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	clearedFields              map[string]struct{}
+	options                    map[int]struct{}
+	removedoptions             map[int]struct{}
+	clearedoptions             bool
+	next_question_inv          map[int]struct{}
+	removednext_question_inv   map[int]struct{}
+	clearednext_question_inv   bool
+	next_question              *int
+	clearednext_question       bool
+	poll                       *int
+	clearedpoll                bool
+	completed_questions        map[int]struct{}
+	removedcompleted_questions map[int]struct{}
+	clearedcompleted_questions bool
+	done                       bool
+	oldValue                   func(context.Context) (*Question, error)
+	predicates                 []predicate.Question
 }
 
 var _ ent.Mutation = (*QuestionMutation)(nil)
@@ -897,6 +1596,42 @@ func (m *QuestionMutation) IDs(ctx context.Context) ([]int, error) {
 	}
 }
 
+// SetTitle sets the "title" field.
+func (m *QuestionMutation) SetTitle(s string) {
+	m.title = &s
+}
+
+// Title returns the value of the "title" field in the mutation.
+func (m *QuestionMutation) Title() (r string, exists bool) {
+	v := m.title
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTitle returns the old "title" field's value of the Question entity.
+// If the Question object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *QuestionMutation) OldTitle(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTitle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTitle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTitle: %w", err)
+	}
+	return oldValue.Title, nil
+}
+
+// ResetTitle resets all changes to the "title" field.
+func (m *QuestionMutation) ResetTitle() {
+	m.title = nil
+}
+
 // SetText sets the "text" field.
 func (m *QuestionMutation) SetText(s string) {
 	m.text = &s
@@ -967,6 +1702,42 @@ func (m *QuestionMutation) OldHead(ctx context.Context) (v bool, err error) {
 // ResetHead resets all changes to the "head" field.
 func (m *QuestionMutation) ResetHead() {
 	m.head = nil
+}
+
+// SetRequired sets the "required" field.
+func (m *QuestionMutation) SetRequired(b bool) {
+	m.required = &b
+}
+
+// Required returns the value of the "required" field in the mutation.
+func (m *QuestionMutation) Required() (r bool, exists bool) {
+	v := m.required
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequired returns the old "required" field's value of the Question entity.
+// If the Question object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *QuestionMutation) OldRequired(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequired is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequired requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequired: %w", err)
+	}
+	return oldValue.Required, nil
+}
+
+// ResetRequired resets all changes to the "required" field.
+func (m *QuestionMutation) ResetRequired() {
+	m.required = nil
 }
 
 // SetNumOfAnswers sets the "num_of_answers" field.
@@ -1307,6 +2078,60 @@ func (m *QuestionMutation) ResetPoll() {
 	m.clearedpoll = false
 }
 
+// AddCompletedQuestionIDs adds the "completed_questions" edge to the CompletedQuestion entity by ids.
+func (m *QuestionMutation) AddCompletedQuestionIDs(ids ...int) {
+	if m.completed_questions == nil {
+		m.completed_questions = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.completed_questions[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCompletedQuestions clears the "completed_questions" edge to the CompletedQuestion entity.
+func (m *QuestionMutation) ClearCompletedQuestions() {
+	m.clearedcompleted_questions = true
+}
+
+// CompletedQuestionsCleared reports if the "completed_questions" edge to the CompletedQuestion entity was cleared.
+func (m *QuestionMutation) CompletedQuestionsCleared() bool {
+	return m.clearedcompleted_questions
+}
+
+// RemoveCompletedQuestionIDs removes the "completed_questions" edge to the CompletedQuestion entity by IDs.
+func (m *QuestionMutation) RemoveCompletedQuestionIDs(ids ...int) {
+	if m.removedcompleted_questions == nil {
+		m.removedcompleted_questions = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.completed_questions, ids[i])
+		m.removedcompleted_questions[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCompletedQuestions returns the removed IDs of the "completed_questions" edge to the CompletedQuestion entity.
+func (m *QuestionMutation) RemovedCompletedQuestionsIDs() (ids []int) {
+	for id := range m.removedcompleted_questions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CompletedQuestionsIDs returns the "completed_questions" edge IDs in the mutation.
+func (m *QuestionMutation) CompletedQuestionsIDs() (ids []int) {
+	for id := range m.completed_questions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCompletedQuestions resets all changes to the "completed_questions" edge.
+func (m *QuestionMutation) ResetCompletedQuestions() {
+	m.completed_questions = nil
+	m.clearedcompleted_questions = false
+	m.removedcompleted_questions = nil
+}
+
 // Where appends a list predicates to the QuestionMutation builder.
 func (m *QuestionMutation) Where(ps ...predicate.Question) {
 	m.predicates = append(m.predicates, ps...)
@@ -1341,12 +2166,18 @@ func (m *QuestionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *QuestionMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
+	if m.title != nil {
+		fields = append(fields, question.FieldTitle)
+	}
 	if m.text != nil {
 		fields = append(fields, question.FieldText)
 	}
 	if m.head != nil {
 		fields = append(fields, question.FieldHead)
+	}
+	if m.required != nil {
+		fields = append(fields, question.FieldRequired)
 	}
 	if m.num_of_answers != nil {
 		fields = append(fields, question.FieldNumOfAnswers)
@@ -1368,10 +2199,14 @@ func (m *QuestionMutation) Fields() []string {
 // schema.
 func (m *QuestionMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case question.FieldTitle:
+		return m.Title()
 	case question.FieldText:
 		return m.Text()
 	case question.FieldHead:
 		return m.Head()
+	case question.FieldRequired:
+		return m.Required()
 	case question.FieldNumOfAnswers:
 		return m.NumOfAnswers()
 	case question.FieldCreatedAt:
@@ -1389,10 +2224,14 @@ func (m *QuestionMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *QuestionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case question.FieldTitle:
+		return m.OldTitle(ctx)
 	case question.FieldText:
 		return m.OldText(ctx)
 	case question.FieldHead:
 		return m.OldHead(ctx)
+	case question.FieldRequired:
+		return m.OldRequired(ctx)
 	case question.FieldNumOfAnswers:
 		return m.OldNumOfAnswers(ctx)
 	case question.FieldCreatedAt:
@@ -1410,6 +2249,13 @@ func (m *QuestionMutation) OldField(ctx context.Context, name string) (ent.Value
 // type.
 func (m *QuestionMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case question.FieldTitle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTitle(v)
+		return nil
 	case question.FieldText:
 		v, ok := value.(string)
 		if !ok {
@@ -1423,6 +2269,13 @@ func (m *QuestionMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetHead(v)
+		return nil
+	case question.FieldRequired:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequired(v)
 		return nil
 	case question.FieldNumOfAnswers:
 		v, ok := value.(int)
@@ -1516,11 +2369,17 @@ func (m *QuestionMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *QuestionMutation) ResetField(name string) error {
 	switch name {
+	case question.FieldTitle:
+		m.ResetTitle()
+		return nil
 	case question.FieldText:
 		m.ResetText()
 		return nil
 	case question.FieldHead:
 		m.ResetHead()
+		return nil
+	case question.FieldRequired:
+		m.ResetRequired()
 		return nil
 	case question.FieldNumOfAnswers:
 		m.ResetNumOfAnswers()
@@ -1540,7 +2399,7 @@ func (m *QuestionMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *QuestionMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.options != nil {
 		edges = append(edges, question.EdgeOptions)
 	}
@@ -1552,6 +2411,9 @@ func (m *QuestionMutation) AddedEdges() []string {
 	}
 	if m.poll != nil {
 		edges = append(edges, question.EdgePoll)
+	}
+	if m.completed_questions != nil {
+		edges = append(edges, question.EdgeCompletedQuestions)
 	}
 	return edges
 }
@@ -1580,18 +2442,27 @@ func (m *QuestionMutation) AddedIDs(name string) []ent.Value {
 		if id := m.poll; id != nil {
 			return []ent.Value{*id}
 		}
+	case question.EdgeCompletedQuestions:
+		ids := make([]ent.Value, 0, len(m.completed_questions))
+		for id := range m.completed_questions {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *QuestionMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.removedoptions != nil {
 		edges = append(edges, question.EdgeOptions)
 	}
 	if m.removednext_question_inv != nil {
 		edges = append(edges, question.EdgeNextQuestionInv)
+	}
+	if m.removedcompleted_questions != nil {
+		edges = append(edges, question.EdgeCompletedQuestions)
 	}
 	return edges
 }
@@ -1612,13 +2483,19 @@ func (m *QuestionMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case question.EdgeCompletedQuestions:
+		ids := make([]ent.Value, 0, len(m.removedcompleted_questions))
+		for id := range m.removedcompleted_questions {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *QuestionMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.clearedoptions {
 		edges = append(edges, question.EdgeOptions)
 	}
@@ -1630,6 +2507,9 @@ func (m *QuestionMutation) ClearedEdges() []string {
 	}
 	if m.clearedpoll {
 		edges = append(edges, question.EdgePoll)
+	}
+	if m.clearedcompleted_questions {
+		edges = append(edges, question.EdgeCompletedQuestions)
 	}
 	return edges
 }
@@ -1646,6 +2526,8 @@ func (m *QuestionMutation) EdgeCleared(name string) bool {
 		return m.clearednext_question
 	case question.EdgePoll:
 		return m.clearedpoll
+	case question.EdgeCompletedQuestions:
+		return m.clearedcompleted_questions
 	}
 	return false
 }
@@ -1680,6 +2562,9 @@ func (m *QuestionMutation) ResetEdge(name string) error {
 	case question.EdgePoll:
 		m.ResetPoll()
 		return nil
+	case question.EdgeCompletedQuestions:
+		m.ResetCompletedQuestions()
+		return nil
 	}
 	return fmt.Errorf("unknown Question edge %s", name)
 }
@@ -1691,7 +2576,6 @@ type QuestionOptionMutation struct {
 	typ                    string
 	id                     *int
 	text                   *string
-	chosen                 *bool
 	created_at             *time.Time
 	updated_at             *time.Time
 	clearedFields          map[string]struct{}
@@ -1838,42 +2722,6 @@ func (m *QuestionOptionMutation) OldText(ctx context.Context) (v string, err err
 // ResetText resets all changes to the "text" field.
 func (m *QuestionOptionMutation) ResetText() {
 	m.text = nil
-}
-
-// SetChosen sets the "chosen" field.
-func (m *QuestionOptionMutation) SetChosen(b bool) {
-	m.chosen = &b
-}
-
-// Chosen returns the value of the "chosen" field in the mutation.
-func (m *QuestionOptionMutation) Chosen() (r bool, exists bool) {
-	v := m.chosen
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldChosen returns the old "chosen" field's value of the QuestionOption entity.
-// If the QuestionOption object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *QuestionOptionMutation) OldChosen(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldChosen is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldChosen requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldChosen: %w", err)
-	}
-	return oldValue.Chosen, nil
-}
-
-// ResetChosen resets all changes to the "chosen" field.
-func (m *QuestionOptionMutation) ResetChosen() {
-	m.chosen = nil
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -2123,12 +2971,9 @@ func (m *QuestionOptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *QuestionOptionMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 4)
 	if m.text != nil {
 		fields = append(fields, questionoption.FieldText)
-	}
-	if m.chosen != nil {
-		fields = append(fields, questionoption.FieldChosen)
 	}
 	if m.created_at != nil {
 		fields = append(fields, questionoption.FieldCreatedAt)
@@ -2149,8 +2994,6 @@ func (m *QuestionOptionMutation) Field(name string) (ent.Value, bool) {
 	switch name {
 	case questionoption.FieldText:
 		return m.Text()
-	case questionoption.FieldChosen:
-		return m.Chosen()
 	case questionoption.FieldCreatedAt:
 		return m.CreatedAt()
 	case questionoption.FieldUpdatedAt:
@@ -2168,8 +3011,6 @@ func (m *QuestionOptionMutation) OldField(ctx context.Context, name string) (ent
 	switch name {
 	case questionoption.FieldText:
 		return m.OldText(ctx)
-	case questionoption.FieldChosen:
-		return m.OldChosen(ctx)
 	case questionoption.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case questionoption.FieldUpdatedAt:
@@ -2191,13 +3032,6 @@ func (m *QuestionOptionMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetText(v)
-		return nil
-	case questionoption.FieldChosen:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetChosen(v)
 		return nil
 	case questionoption.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -2274,9 +3108,6 @@ func (m *QuestionOptionMutation) ResetField(name string) error {
 	switch name {
 	case questionoption.FieldText:
 		m.ResetText()
-		return nil
-	case questionoption.FieldChosen:
-		m.ResetChosen()
 		return nil
 	case questionoption.FieldCreatedAt:
 		m.ResetCreatedAt()
@@ -2401,26 +3232,759 @@ func (m *QuestionOptionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown QuestionOption edge %s", name)
 }
 
+// StartedPollMutation represents an operation that mutates the StartedPoll nodes in the graph.
+type StartedPollMutation struct {
+	config
+	op                         Op
+	typ                        string
+	id                         *int
+	completed                  *bool
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	clearedFields              map[string]struct{}
+	poll                       *int
+	clearedpoll                bool
+	user                       *int
+	cleareduser                bool
+	completed_questions        map[int]struct{}
+	removedcompleted_questions map[int]struct{}
+	clearedcompleted_questions bool
+	done                       bool
+	oldValue                   func(context.Context) (*StartedPoll, error)
+	predicates                 []predicate.StartedPoll
+}
+
+var _ ent.Mutation = (*StartedPollMutation)(nil)
+
+// startedpollOption allows management of the mutation configuration using functional options.
+type startedpollOption func(*StartedPollMutation)
+
+// newStartedPollMutation creates new mutation for the StartedPoll entity.
+func newStartedPollMutation(c config, op Op, opts ...startedpollOption) *StartedPollMutation {
+	m := &StartedPollMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeStartedPoll,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withStartedPollID sets the ID field of the mutation.
+func withStartedPollID(id int) startedpollOption {
+	return func(m *StartedPollMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *StartedPoll
+		)
+		m.oldValue = func(ctx context.Context) (*StartedPoll, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().StartedPoll.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withStartedPoll sets the old StartedPoll of the mutation.
+func withStartedPoll(node *StartedPoll) startedpollOption {
+	return func(m *StartedPollMutation) {
+		m.oldValue = func(context.Context) (*StartedPoll, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m StartedPollMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m StartedPollMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *StartedPollMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *StartedPollMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().StartedPoll.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPollID sets the "poll_id" field.
+func (m *StartedPollMutation) SetPollID(i int) {
+	m.poll = &i
+}
+
+// PollID returns the value of the "poll_id" field in the mutation.
+func (m *StartedPollMutation) PollID() (r int, exists bool) {
+	v := m.poll
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPollID returns the old "poll_id" field's value of the StartedPoll entity.
+// If the StartedPoll object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StartedPollMutation) OldPollID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPollID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPollID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPollID: %w", err)
+	}
+	return oldValue.PollID, nil
+}
+
+// ResetPollID resets all changes to the "poll_id" field.
+func (m *StartedPollMutation) ResetPollID() {
+	m.poll = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *StartedPollMutation) SetUserID(i int) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *StartedPollMutation) UserID() (r int, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the StartedPoll entity.
+// If the StartedPoll object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StartedPollMutation) OldUserID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *StartedPollMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetCompleted sets the "completed" field.
+func (m *StartedPollMutation) SetCompleted(b bool) {
+	m.completed = &b
+}
+
+// Completed returns the value of the "completed" field in the mutation.
+func (m *StartedPollMutation) Completed() (r bool, exists bool) {
+	v := m.completed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompleted returns the old "completed" field's value of the StartedPoll entity.
+// If the StartedPoll object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StartedPollMutation) OldCompleted(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompleted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompleted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompleted: %w", err)
+	}
+	return oldValue.Completed, nil
+}
+
+// ResetCompleted resets all changes to the "completed" field.
+func (m *StartedPollMutation) ResetCompleted() {
+	m.completed = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *StartedPollMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *StartedPollMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the StartedPoll entity.
+// If the StartedPoll object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StartedPollMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *StartedPollMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *StartedPollMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *StartedPollMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the StartedPoll entity.
+// If the StartedPoll object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StartedPollMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *StartedPollMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearPoll clears the "poll" edge to the Poll entity.
+func (m *StartedPollMutation) ClearPoll() {
+	m.clearedpoll = true
+	m.clearedFields[startedpoll.FieldPollID] = struct{}{}
+}
+
+// PollCleared reports if the "poll" edge to the Poll entity was cleared.
+func (m *StartedPollMutation) PollCleared() bool {
+	return m.clearedpoll
+}
+
+// PollIDs returns the "poll" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PollID instead. It exists only for internal usage by the builders.
+func (m *StartedPollMutation) PollIDs() (ids []int) {
+	if id := m.poll; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPoll resets all changes to the "poll" edge.
+func (m *StartedPollMutation) ResetPoll() {
+	m.poll = nil
+	m.clearedpoll = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *StartedPollMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[startedpoll.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *StartedPollMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *StartedPollMutation) UserIDs() (ids []int) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *StartedPollMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// AddCompletedQuestionIDs adds the "completed_questions" edge to the CompletedQuestion entity by ids.
+func (m *StartedPollMutation) AddCompletedQuestionIDs(ids ...int) {
+	if m.completed_questions == nil {
+		m.completed_questions = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.completed_questions[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCompletedQuestions clears the "completed_questions" edge to the CompletedQuestion entity.
+func (m *StartedPollMutation) ClearCompletedQuestions() {
+	m.clearedcompleted_questions = true
+}
+
+// CompletedQuestionsCleared reports if the "completed_questions" edge to the CompletedQuestion entity was cleared.
+func (m *StartedPollMutation) CompletedQuestionsCleared() bool {
+	return m.clearedcompleted_questions
+}
+
+// RemoveCompletedQuestionIDs removes the "completed_questions" edge to the CompletedQuestion entity by IDs.
+func (m *StartedPollMutation) RemoveCompletedQuestionIDs(ids ...int) {
+	if m.removedcompleted_questions == nil {
+		m.removedcompleted_questions = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.completed_questions, ids[i])
+		m.removedcompleted_questions[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCompletedQuestions returns the removed IDs of the "completed_questions" edge to the CompletedQuestion entity.
+func (m *StartedPollMutation) RemovedCompletedQuestionsIDs() (ids []int) {
+	for id := range m.removedcompleted_questions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CompletedQuestionsIDs returns the "completed_questions" edge IDs in the mutation.
+func (m *StartedPollMutation) CompletedQuestionsIDs() (ids []int) {
+	for id := range m.completed_questions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCompletedQuestions resets all changes to the "completed_questions" edge.
+func (m *StartedPollMutation) ResetCompletedQuestions() {
+	m.completed_questions = nil
+	m.clearedcompleted_questions = false
+	m.removedcompleted_questions = nil
+}
+
+// Where appends a list predicates to the StartedPollMutation builder.
+func (m *StartedPollMutation) Where(ps ...predicate.StartedPoll) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the StartedPollMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *StartedPollMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.StartedPoll, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *StartedPollMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *StartedPollMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (StartedPoll).
+func (m *StartedPollMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *StartedPollMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.poll != nil {
+		fields = append(fields, startedpoll.FieldPollID)
+	}
+	if m.user != nil {
+		fields = append(fields, startedpoll.FieldUserID)
+	}
+	if m.completed != nil {
+		fields = append(fields, startedpoll.FieldCompleted)
+	}
+	if m.created_at != nil {
+		fields = append(fields, startedpoll.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, startedpoll.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *StartedPollMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case startedpoll.FieldPollID:
+		return m.PollID()
+	case startedpoll.FieldUserID:
+		return m.UserID()
+	case startedpoll.FieldCompleted:
+		return m.Completed()
+	case startedpoll.FieldCreatedAt:
+		return m.CreatedAt()
+	case startedpoll.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *StartedPollMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case startedpoll.FieldPollID:
+		return m.OldPollID(ctx)
+	case startedpoll.FieldUserID:
+		return m.OldUserID(ctx)
+	case startedpoll.FieldCompleted:
+		return m.OldCompleted(ctx)
+	case startedpoll.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case startedpoll.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown StartedPoll field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *StartedPollMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case startedpoll.FieldPollID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPollID(v)
+		return nil
+	case startedpoll.FieldUserID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case startedpoll.FieldCompleted:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompleted(v)
+		return nil
+	case startedpoll.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case startedpoll.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown StartedPoll field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *StartedPollMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *StartedPollMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *StartedPollMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown StartedPoll numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *StartedPollMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *StartedPollMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *StartedPollMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown StartedPoll nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *StartedPollMutation) ResetField(name string) error {
+	switch name {
+	case startedpoll.FieldPollID:
+		m.ResetPollID()
+		return nil
+	case startedpoll.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case startedpoll.FieldCompleted:
+		m.ResetCompleted()
+		return nil
+	case startedpoll.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case startedpoll.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown StartedPoll field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *StartedPollMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.poll != nil {
+		edges = append(edges, startedpoll.EdgePoll)
+	}
+	if m.user != nil {
+		edges = append(edges, startedpoll.EdgeUser)
+	}
+	if m.completed_questions != nil {
+		edges = append(edges, startedpoll.EdgeCompletedQuestions)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *StartedPollMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case startedpoll.EdgePoll:
+		if id := m.poll; id != nil {
+			return []ent.Value{*id}
+		}
+	case startedpoll.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	case startedpoll.EdgeCompletedQuestions:
+		ids := make([]ent.Value, 0, len(m.completed_questions))
+		for id := range m.completed_questions {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *StartedPollMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.removedcompleted_questions != nil {
+		edges = append(edges, startedpoll.EdgeCompletedQuestions)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *StartedPollMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case startedpoll.EdgeCompletedQuestions:
+		ids := make([]ent.Value, 0, len(m.removedcompleted_questions))
+		for id := range m.removedcompleted_questions {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *StartedPollMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedpoll {
+		edges = append(edges, startedpoll.EdgePoll)
+	}
+	if m.cleareduser {
+		edges = append(edges, startedpoll.EdgeUser)
+	}
+	if m.clearedcompleted_questions {
+		edges = append(edges, startedpoll.EdgeCompletedQuestions)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *StartedPollMutation) EdgeCleared(name string) bool {
+	switch name {
+	case startedpoll.EdgePoll:
+		return m.clearedpoll
+	case startedpoll.EdgeUser:
+		return m.cleareduser
+	case startedpoll.EdgeCompletedQuestions:
+		return m.clearedcompleted_questions
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *StartedPollMutation) ClearEdge(name string) error {
+	switch name {
+	case startedpoll.EdgePoll:
+		m.ClearPoll()
+		return nil
+	case startedpoll.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown StartedPoll unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *StartedPollMutation) ResetEdge(name string) error {
+	switch name {
+	case startedpoll.EdgePoll:
+		m.ResetPoll()
+		return nil
+	case startedpoll.EdgeUser:
+		m.ResetUser()
+		return nil
+	case startedpoll.EdgeCompletedQuestions:
+		m.ResetCompletedQuestions()
+		return nil
+	}
+	return fmt.Errorf("unknown StartedPoll edge %s", name)
+}
+
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	first_name    *string
-	last_name     *string
-	email         *string
-	password      *string
-	role          *user.Role
-	created_at    *time.Time
-	updated_at    *time.Time
-	clearedFields map[string]struct{}
-	polls         map[int]struct{}
-	removedpolls  map[int]struct{}
-	clearedpolls  bool
-	done          bool
-	oldValue      func(context.Context) (*User, error)
-	predicates    []predicate.User
+	op                   Op
+	typ                  string
+	id                   *int
+	first_name           *string
+	last_name            *string
+	email                *string
+	password             *string
+	role                 *user.Role
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	polls                map[int]struct{}
+	removedpolls         map[int]struct{}
+	clearedpolls         bool
+	started_polls        map[int]struct{}
+	removedstarted_polls map[int]struct{}
+	clearedstarted_polls bool
+	done                 bool
+	oldValue             func(context.Context) (*User, error)
+	predicates           []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -2827,6 +4391,60 @@ func (m *UserMutation) ResetPolls() {
 	m.removedpolls = nil
 }
 
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by ids.
+func (m *UserMutation) AddStartedPollIDs(ids ...int) {
+	if m.started_polls == nil {
+		m.started_polls = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.started_polls[ids[i]] = struct{}{}
+	}
+}
+
+// ClearStartedPolls clears the "started_polls" edge to the StartedPoll entity.
+func (m *UserMutation) ClearStartedPolls() {
+	m.clearedstarted_polls = true
+}
+
+// StartedPollsCleared reports if the "started_polls" edge to the StartedPoll entity was cleared.
+func (m *UserMutation) StartedPollsCleared() bool {
+	return m.clearedstarted_polls
+}
+
+// RemoveStartedPollIDs removes the "started_polls" edge to the StartedPoll entity by IDs.
+func (m *UserMutation) RemoveStartedPollIDs(ids ...int) {
+	if m.removedstarted_polls == nil {
+		m.removedstarted_polls = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.started_polls, ids[i])
+		m.removedstarted_polls[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedStartedPolls returns the removed IDs of the "started_polls" edge to the StartedPoll entity.
+func (m *UserMutation) RemovedStartedPollsIDs() (ids []int) {
+	for id := range m.removedstarted_polls {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// StartedPollsIDs returns the "started_polls" edge IDs in the mutation.
+func (m *UserMutation) StartedPollsIDs() (ids []int) {
+	for id := range m.started_polls {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetStartedPolls resets all changes to the "started_polls" edge.
+func (m *UserMutation) ResetStartedPolls() {
+	m.started_polls = nil
+	m.clearedstarted_polls = false
+	m.removedstarted_polls = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -3062,9 +4680,12 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.polls != nil {
 		edges = append(edges, user.EdgePolls)
+	}
+	if m.started_polls != nil {
+		edges = append(edges, user.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -3079,15 +4700,24 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeStartedPolls:
+		ids := make([]ent.Value, 0, len(m.started_polls))
+		for id := range m.started_polls {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.removedpolls != nil {
 		edges = append(edges, user.EdgePolls)
+	}
+	if m.removedstarted_polls != nil {
+		edges = append(edges, user.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -3102,15 +4732,24 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeStartedPolls:
+		ids := make([]ent.Value, 0, len(m.removedstarted_polls))
+		for id := range m.removedstarted_polls {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedpolls {
 		edges = append(edges, user.EdgePolls)
+	}
+	if m.clearedstarted_polls {
+		edges = append(edges, user.EdgeStartedPolls)
 	}
 	return edges
 }
@@ -3121,6 +4760,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 	switch name {
 	case user.EdgePolls:
 		return m.clearedpolls
+	case user.EdgeStartedPolls:
+		return m.clearedstarted_polls
 	}
 	return false
 }
@@ -3139,6 +4780,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 	switch name {
 	case user.EdgePolls:
 		m.ResetPolls()
+		return nil
+	case user.EdgeStartedPolls:
+		m.ResetStartedPolls()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

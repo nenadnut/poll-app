@@ -8,12 +8,40 @@ import (
 )
 
 var (
+	// CompletedQuestionsColumns holds the columns for the "completed_questions" table.
+	CompletedQuestionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "answers", Type: field.TypeJSON},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "question_id", Type: field.TypeInt},
+		{Name: "started_poll_id", Type: field.TypeInt},
+	}
+	// CompletedQuestionsTable holds the schema information for the "completed_questions" table.
+	CompletedQuestionsTable = &schema.Table{
+		Name:       "completed_questions",
+		Columns:    CompletedQuestionsColumns,
+		PrimaryKey: []*schema.Column{CompletedQuestionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "completed_questions_questions_completed_questions",
+				Columns:    []*schema.Column{CompletedQuestionsColumns[4]},
+				RefColumns: []*schema.Column{QuestionsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "completed_questions_started_polls_completed_questions",
+				Columns:    []*schema.Column{CompletedQuestionsColumns[5]},
+				RefColumns: []*schema.Column{StartedPollsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// PollsColumns holds the columns for the "polls" table.
 	PollsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "title", Type: field.TypeString},
 		{Name: "description", Type: field.TypeString},
-		{Name: "completed", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "creator_id", Type: field.TypeInt},
@@ -26,7 +54,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "polls_users_polls",
-				Columns:    []*schema.Column{PollsColumns[6]},
+				Columns:    []*schema.Column{PollsColumns[5]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -35,8 +63,10 @@ var (
 	// QuestionsColumns holds the columns for the "questions" table.
 	QuestionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "title", Type: field.TypeString},
 		{Name: "text", Type: field.TypeString},
 		{Name: "head", Type: field.TypeBool, Default: false},
+		{Name: "required", Type: field.TypeBool, Default: true},
 		{Name: "num_of_answers", Type: field.TypeInt, Default: 1},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
@@ -51,13 +81,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "questions_polls_questions",
-				Columns:    []*schema.Column{QuestionsColumns[6]},
+				Columns:    []*schema.Column{QuestionsColumns[8]},
 				RefColumns: []*schema.Column{PollsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
 				Symbol:     "questions_questions_next_question",
-				Columns:    []*schema.Column{QuestionsColumns[7]},
+				Columns:    []*schema.Column{QuestionsColumns[9]},
 				RefColumns: []*schema.Column{QuestionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -67,7 +97,6 @@ var (
 	QuestionOptionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "text", Type: field.TypeString},
-		{Name: "chosen", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "question_id", Type: field.TypeInt},
@@ -81,15 +110,44 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "question_options_questions_options",
-				Columns:    []*schema.Column{QuestionOptionsColumns[5]},
+				Columns:    []*schema.Column{QuestionOptionsColumns[4]},
 				RefColumns: []*schema.Column{QuestionsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
 				Symbol:     "question_options_question_options_next_option",
-				Columns:    []*schema.Column{QuestionOptionsColumns[6]},
+				Columns:    []*schema.Column{QuestionOptionsColumns[5]},
 				RefColumns: []*schema.Column{QuestionOptionsColumns[0]},
 				OnDelete:   schema.SetNull,
+			},
+		},
+	}
+	// StartedPollsColumns holds the columns for the "started_polls" table.
+	StartedPollsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "completed", Type: field.TypeBool, Default: false},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "poll_id", Type: field.TypeInt},
+		{Name: "user_id", Type: field.TypeInt},
+	}
+	// StartedPollsTable holds the schema information for the "started_polls" table.
+	StartedPollsTable = &schema.Table{
+		Name:       "started_polls",
+		Columns:    StartedPollsColumns,
+		PrimaryKey: []*schema.Column{StartedPollsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "started_polls_polls_started_polls",
+				Columns:    []*schema.Column{StartedPollsColumns[4]},
+				RefColumns: []*schema.Column{PollsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "started_polls_users_started_polls",
+				Columns:    []*schema.Column{StartedPollsColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
 			},
 		},
 	}
@@ -112,17 +170,23 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		CompletedQuestionsTable,
 		PollsTable,
 		QuestionsTable,
 		QuestionOptionsTable,
+		StartedPollsTable,
 		UsersTable,
 	}
 )
 
 func init() {
+	CompletedQuestionsTable.ForeignKeys[0].RefTable = QuestionsTable
+	CompletedQuestionsTable.ForeignKeys[1].RefTable = StartedPollsTable
 	PollsTable.ForeignKeys[0].RefTable = UsersTable
 	QuestionsTable.ForeignKeys[0].RefTable = PollsTable
 	QuestionsTable.ForeignKeys[1].RefTable = QuestionsTable
 	QuestionOptionsTable.ForeignKeys[0].RefTable = QuestionsTable
 	QuestionOptionsTable.ForeignKeys[1].RefTable = QuestionOptionsTable
+	StartedPollsTable.ForeignKeys[0].RefTable = PollsTable
+	StartedPollsTable.ForeignKeys[1].RefTable = UsersTable
 }

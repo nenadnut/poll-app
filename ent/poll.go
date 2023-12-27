@@ -22,8 +22,6 @@ type Poll struct {
 	Title string `json:"title,omitempty"`
 	// Description holds the value of the "description" field.
 	Description string `json:"description,omitempty"`
-	// Completed holds the value of the "completed" field.
-	Completed bool `json:"completed,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"-"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -42,9 +40,11 @@ type PollEdges struct {
 	Creator *User `json:"creator,omitempty"`
 	// Questions holds the value of the questions edge.
 	Questions []*Question `json:"questions,omitempty"`
+	// StartedPolls holds the value of the started_polls edge.
+	StartedPolls []*StartedPoll `json:"started_polls,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
 }
 
 // CreatorOrErr returns the Creator value or an error if the edge
@@ -69,13 +69,20 @@ func (e PollEdges) QuestionsOrErr() ([]*Question, error) {
 	return nil, &NotLoadedError{edge: "questions"}
 }
 
+// StartedPollsOrErr returns the StartedPolls value or an error if the edge
+// was not loaded in eager-loading.
+func (e PollEdges) StartedPollsOrErr() ([]*StartedPoll, error) {
+	if e.loadedTypes[2] {
+		return e.StartedPolls, nil
+	}
+	return nil, &NotLoadedError{edge: "started_polls"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Poll) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case poll.FieldCompleted:
-			values[i] = new(sql.NullBool)
 		case poll.FieldID, poll.FieldCreatorID:
 			values[i] = new(sql.NullInt64)
 		case poll.FieldTitle, poll.FieldDescription:
@@ -114,12 +121,6 @@ func (po *Poll) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field description", values[i])
 			} else if value.Valid {
 				po.Description = value.String
-			}
-		case poll.FieldCompleted:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field completed", values[i])
-			} else if value.Valid {
-				po.Completed = value.Bool
 			}
 		case poll.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -162,6 +163,11 @@ func (po *Poll) QueryQuestions() *QuestionQuery {
 	return NewPollClient(po.config).QueryQuestions(po)
 }
 
+// QueryStartedPolls queries the "started_polls" edge of the Poll entity.
+func (po *Poll) QueryStartedPolls() *StartedPollQuery {
+	return NewPollClient(po.config).QueryStartedPolls(po)
+}
+
 // Update returns a builder for updating this Poll.
 // Note that you need to call Poll.Unwrap() before calling this method if this Poll
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -190,9 +196,6 @@ func (po *Poll) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("description=")
 	builder.WriteString(po.Description)
-	builder.WriteString(", ")
-	builder.WriteString("completed=")
-	builder.WriteString(fmt.Sprintf("%v", po.Completed))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(po.CreatedAt.Format(time.ANSIC))

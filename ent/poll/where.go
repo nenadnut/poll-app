@@ -65,11 +65,6 @@ func Description(v string) predicate.Poll {
 	return predicate.Poll(sql.FieldEQ(FieldDescription, v))
 }
 
-// Completed applies equality check predicate on the "completed" field. It's identical to CompletedEQ.
-func Completed(v bool) predicate.Poll {
-	return predicate.Poll(sql.FieldEQ(FieldCompleted, v))
-}
-
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Poll {
 	return predicate.Poll(sql.FieldEQ(FieldCreatedAt, v))
@@ -215,16 +210,6 @@ func DescriptionContainsFold(v string) predicate.Poll {
 	return predicate.Poll(sql.FieldContainsFold(FieldDescription, v))
 }
 
-// CompletedEQ applies the EQ predicate on the "completed" field.
-func CompletedEQ(v bool) predicate.Poll {
-	return predicate.Poll(sql.FieldEQ(FieldCompleted, v))
-}
-
-// CompletedNEQ applies the NEQ predicate on the "completed" field.
-func CompletedNEQ(v bool) predicate.Poll {
-	return predicate.Poll(sql.FieldNEQ(FieldCompleted, v))
-}
-
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Poll {
 	return predicate.Poll(sql.FieldEQ(FieldCreatedAt, v))
@@ -363,6 +348,29 @@ func HasQuestions() predicate.Poll {
 func HasQuestionsWith(preds ...predicate.Question) predicate.Poll {
 	return predicate.Poll(func(s *sql.Selector) {
 		step := newQuestionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasStartedPolls applies the HasEdge predicate on the "started_polls" edge.
+func HasStartedPolls() predicate.Poll {
+	return predicate.Poll(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, StartedPollsTable, StartedPollsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasStartedPollsWith applies the HasEdge predicate on the "started_polls" edge with a given conditions (other predicates).
+func HasStartedPollsWith(preds ...predicate.StartedPoll) predicate.Poll {
+	return predicate.Poll(func(s *sql.Selector) {
+		step := newStartedPollsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

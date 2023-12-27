@@ -33,6 +33,23 @@ func (db *QuestionPersistence) FindByID(id int) (*ent.Question, error) {
 	return question, nil
 }
 
+// FindRequiredByPollID finds required questions by poll id
+func (db *QuestionPersistence) FindRequiredByPollID(pollID int) ([]*ent.Question, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	questions, err := db.Client().Question.Query().
+		Where(question.PollID(pollID)).
+		Where(question.Required(true)).
+		All(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed fetching the required question by poll id %d: %w", pollID, err)
+	}
+
+	return questions, nil
+}
+
 // UpdateByID updates a question by its id
 func (db *QuestionPersistence) UpdateByID(id int, questionUpdate *ent.QuestionUpdateOne) (*ent.Question, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)

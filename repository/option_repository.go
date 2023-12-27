@@ -11,6 +11,7 @@ type OptionRepository interface {
 	// FindAll() ([]*ent.Poll, error)
 	// FindByCreator(creatorID int) ([]*ent.Poll, error)
 	// FindByID(id int) (*ent.Poll, error)
+	FindByQuestionID(questionID int) ([]*ent.QuestionOption, error)
 	UpdateByID(id int, pollUpdate *ent.PollUpdateOne) (*ent.Poll, error)
 	DeleteByID(id int) error
 }

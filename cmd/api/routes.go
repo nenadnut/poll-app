@@ -22,8 +22,19 @@ func (app *application) router() *httprouter.Router {
 	router.DELETE("/questions/:id", app.DeleteQuestion)
 
 	// options
+	router.POST("/options/:questionId", app.AddOptions)
 	router.PUT("/options/:id", app.UpdateOption)
 	router.DELETE("/options/:id", app.DeleteOption)
+
+	// started polls
+	router.POST("/started-polls/", app.StartPoll)
+	router.PUT("/started-polls/:id/complete", app.CompletePoll)
+
+	// answered questions
+	router.POST("/answered-questions/", app.AnswerQuestion)
+
+	// stats
+	router.GET("/completed-polls/:polld/stats", app.GetPollStats)
 
 	return router
 }

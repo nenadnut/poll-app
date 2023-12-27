@@ -12,12 +12,16 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// CompletedQuestion is the client for interacting with the CompletedQuestion builders.
+	CompletedQuestion *CompletedQuestionClient
 	// Poll is the client for interacting with the Poll builders.
 	Poll *PollClient
 	// Question is the client for interacting with the Question builders.
 	Question *QuestionClient
 	// QuestionOption is the client for interacting with the QuestionOption builders.
 	QuestionOption *QuestionOptionClient
+	// StartedPoll is the client for interacting with the StartedPoll builders.
+	StartedPoll *StartedPollClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -151,9 +155,11 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.CompletedQuestion = NewCompletedQuestionClient(tx.config)
 	tx.Poll = NewPollClient(tx.config)
 	tx.Question = NewQuestionClient(tx.config)
 	tx.QuestionOption = NewQuestionOptionClient(tx.config)
+	tx.StartedPoll = NewStartedPollClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 
@@ -164,7 +170,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Poll.QueryXXX(), the query will be executed
+// applies a query, for example: CompletedQuestion.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

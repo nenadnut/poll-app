@@ -10,6 +10,7 @@ import (
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
 	"poll-app/ent/question"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 
 	"entgo.io/ent/dialect/sql"
@@ -20,12 +21,13 @@ import (
 // PollQuery is the builder for querying Poll entities.
 type PollQuery struct {
 	config
-	ctx           *QueryContext
-	order         []poll.OrderOption
-	inters        []Interceptor
-	predicates    []predicate.Poll
-	withCreator   *UserQuery
-	withQuestions *QuestionQuery
+	ctx              *QueryContext
+	order            []poll.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.Poll
+	withCreator      *UserQuery
+	withQuestions    *QuestionQuery
+	withStartedPolls *StartedPollQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -99,6 +101,28 @@ func (pq *PollQuery) QueryQuestions() *QuestionQuery {
 			sqlgraph.From(poll.Table, poll.FieldID, selector),
 			sqlgraph.To(question.Table, question.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, poll.QuestionsTable, poll.QuestionsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(pq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryStartedPolls chains the current query on the "started_polls" edge.
+func (pq *PollQuery) QueryStartedPolls() *StartedPollQuery {
+	query := (&StartedPollClient{config: pq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := pq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := pq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(poll.Table, poll.FieldID, selector),
+			sqlgraph.To(startedpoll.Table, startedpoll.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, poll.StartedPollsTable, poll.StartedPollsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(pq.driver.Dialect(), step)
 		return fromU, nil
@@ -293,13 +317,14 @@ func (pq *PollQuery) Clone() *PollQuery {
 		return nil
 	}
 	return &PollQuery{
-		config:        pq.config,
-		ctx:           pq.ctx.Clone(),
-		order:         append([]poll.OrderOption{}, pq.order...),
-		inters:        append([]Interceptor{}, pq.inters...),
-		predicates:    append([]predicate.Poll{}, pq.predicates...),
-		withCreator:   pq.withCreator.Clone(),
-		withQuestions: pq.withQuestions.Clone(),
+		config:           pq.config,
+		ctx:              pq.ctx.Clone(),
+		order:            append([]poll.OrderOption{}, pq.order...),
+		inters:           append([]Interceptor{}, pq.inters...),
+		predicates:       append([]predicate.Poll{}, pq.predicates...),
+		withCreator:      pq.withCreator.Clone(),
+		withQuestions:    pq.withQuestions.Clone(),
+		withStartedPolls: pq.withStartedPolls.Clone(),
 		// clone intermediate query.
 		sql:  pq.sql.Clone(),
 		path: pq.path,
@@ -325,6 +350,17 @@ func (pq *PollQuery) WithQuestions(opts ...func(*QuestionQuery)) *PollQuery {
 		opt(query)
 	}
 	pq.withQuestions = query
+	return pq
+}
+
+// WithStartedPolls tells the query-builder to eager-load the nodes that are connected to
+// the "started_polls" edge. The optional arguments are used to configure the query builder of the edge.
+func (pq *PollQuery) WithStartedPolls(opts ...func(*StartedPollQuery)) *PollQuery {
+	query := (&StartedPollClient{config: pq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	pq.withStartedPolls = query
 	return pq
 }
 
@@ -406,9 +442,10 @@ func (pq *PollQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Poll, e
 	var (
 		nodes       = []*Poll{}
 		_spec       = pq.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			pq.withCreator != nil,
 			pq.withQuestions != nil,
+			pq.withStartedPolls != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -439,6 +476,13 @@ func (pq *PollQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Poll, e
 		if err := pq.loadQuestions(ctx, query, nodes,
 			func(n *Poll) { n.Edges.Questions = []*Question{} },
 			func(n *Poll, e *Question) { n.Edges.Questions = append(n.Edges.Questions, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := pq.withStartedPolls; query != nil {
+		if err := pq.loadStartedPolls(ctx, query, nodes,
+			func(n *Poll) { n.Edges.StartedPolls = []*StartedPoll{} },
+			func(n *Poll, e *StartedPoll) { n.Edges.StartedPolls = append(n.Edges.StartedPolls, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -490,6 +534,36 @@ func (pq *PollQuery) loadQuestions(ctx context.Context, query *QuestionQuery, no
 	}
 	query.Where(predicate.Question(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(poll.QuestionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.PollID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "poll_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (pq *PollQuery) loadStartedPolls(ctx context.Context, query *StartedPollQuery, nodes []*Poll, init func(*Poll), assign func(*Poll, *StartedPoll)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Poll)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(startedpoll.FieldPollID)
+	}
+	query.Where(predicate.StartedPoll(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(poll.StartedPollsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

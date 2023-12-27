@@ -31,6 +31,8 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// EdgePolls holds the string denoting the polls edge name in mutations.
 	EdgePolls = "polls"
+	// EdgeStartedPolls holds the string denoting the started_polls edge name in mutations.
+	EdgeStartedPolls = "started_polls"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// PollsTable is the table that holds the polls relation/edge.
@@ -40,6 +42,13 @@ const (
 	PollsInverseTable = "polls"
 	// PollsColumn is the table column denoting the polls relation/edge.
 	PollsColumn = "creator_id"
+	// StartedPollsTable is the table that holds the started_polls relation/edge.
+	StartedPollsTable = "started_polls"
+	// StartedPollsInverseTable is the table name for the StartedPoll entity.
+	// It exists in this package in order to avoid circular dependency with the "startedpoll" package.
+	StartedPollsInverseTable = "started_polls"
+	// StartedPollsColumn is the table column denoting the started_polls relation/edge.
+	StartedPollsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -153,10 +162,31 @@ func ByPolls(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newPollsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByStartedPollsCount orders the results by started_polls count.
+func ByStartedPollsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newStartedPollsStep(), opts...)
+	}
+}
+
+// ByStartedPolls orders the results by started_polls terms.
+func ByStartedPolls(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newStartedPollsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newPollsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PollsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PollsTable, PollsColumn),
+	)
+}
+func newStartedPollsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(StartedPollsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, StartedPollsTable, StartedPollsColumn),
 	)
 }

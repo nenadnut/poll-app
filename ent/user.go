@@ -41,9 +41,11 @@ type User struct {
 type UserEdges struct {
 	// Polls holds the value of the polls edge.
 	Polls []*Poll `json:"polls,omitempty"`
+	// StartedPolls holds the value of the started_polls edge.
+	StartedPolls []*StartedPoll `json:"started_polls,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // PollsOrErr returns the Polls value or an error if the edge
@@ -53,6 +55,15 @@ func (e UserEdges) PollsOrErr() ([]*Poll, error) {
 		return e.Polls, nil
 	}
 	return nil, &NotLoadedError{edge: "polls"}
+}
+
+// StartedPollsOrErr returns the StartedPolls value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) StartedPollsOrErr() ([]*StartedPoll, error) {
+	if e.loadedTypes[1] {
+		return e.StartedPolls, nil
+	}
+	return nil, &NotLoadedError{edge: "started_polls"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -145,6 +156,11 @@ func (u *User) Value(name string) (ent.Value, error) {
 // QueryPolls queries the "polls" edge of the User entity.
 func (u *User) QueryPolls() *PollQuery {
 	return NewUserClient(u.config).QueryPolls(u)
+}
+
+// QueryStartedPolls queries the "started_polls" edge of the User entity.
+func (u *User) QueryStartedPolls() *StartedPollQuery {
+	return NewUserClient(u.config).QueryStartedPolls(u)
 }
 
 // Update returns a builder for updating this User.

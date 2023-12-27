@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"poll-app/ent/completedquestion"
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
 	"poll-app/ent/question"
@@ -27,6 +28,20 @@ type QuestionUpdate struct {
 // Where appends a list predicates to the QuestionUpdate builder.
 func (qu *QuestionUpdate) Where(ps ...predicate.Question) *QuestionUpdate {
 	qu.mutation.Where(ps...)
+	return qu
+}
+
+// SetTitle sets the "title" field.
+func (qu *QuestionUpdate) SetTitle(s string) *QuestionUpdate {
+	qu.mutation.SetTitle(s)
+	return qu
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (qu *QuestionUpdate) SetNillableTitle(s *string) *QuestionUpdate {
+	if s != nil {
+		qu.SetTitle(*s)
+	}
 	return qu
 }
 
@@ -54,6 +69,20 @@ func (qu *QuestionUpdate) SetHead(b bool) *QuestionUpdate {
 func (qu *QuestionUpdate) SetNillableHead(b *bool) *QuestionUpdate {
 	if b != nil {
 		qu.SetHead(*b)
+	}
+	return qu
+}
+
+// SetRequired sets the "required" field.
+func (qu *QuestionUpdate) SetRequired(b bool) *QuestionUpdate {
+	qu.mutation.SetRequired(b)
+	return qu
+}
+
+// SetNillableRequired sets the "required" field if the given value is not nil.
+func (qu *QuestionUpdate) SetNillableRequired(b *bool) *QuestionUpdate {
+	if b != nil {
+		qu.SetRequired(*b)
 	}
 	return qu
 }
@@ -175,6 +204,21 @@ func (qu *QuestionUpdate) SetPoll(p *Poll) *QuestionUpdate {
 	return qu.SetPollID(p.ID)
 }
 
+// AddCompletedQuestionIDs adds the "completed_questions" edge to the CompletedQuestion entity by IDs.
+func (qu *QuestionUpdate) AddCompletedQuestionIDs(ids ...int) *QuestionUpdate {
+	qu.mutation.AddCompletedQuestionIDs(ids...)
+	return qu
+}
+
+// AddCompletedQuestions adds the "completed_questions" edges to the CompletedQuestion entity.
+func (qu *QuestionUpdate) AddCompletedQuestions(c ...*CompletedQuestion) *QuestionUpdate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return qu.AddCompletedQuestionIDs(ids...)
+}
+
 // Mutation returns the QuestionMutation object of the builder.
 func (qu *QuestionUpdate) Mutation() *QuestionMutation {
 	return qu.mutation
@@ -234,6 +278,27 @@ func (qu *QuestionUpdate) ClearPoll() *QuestionUpdate {
 	return qu
 }
 
+// ClearCompletedQuestions clears all "completed_questions" edges to the CompletedQuestion entity.
+func (qu *QuestionUpdate) ClearCompletedQuestions() *QuestionUpdate {
+	qu.mutation.ClearCompletedQuestions()
+	return qu
+}
+
+// RemoveCompletedQuestionIDs removes the "completed_questions" edge to CompletedQuestion entities by IDs.
+func (qu *QuestionUpdate) RemoveCompletedQuestionIDs(ids ...int) *QuestionUpdate {
+	qu.mutation.RemoveCompletedQuestionIDs(ids...)
+	return qu
+}
+
+// RemoveCompletedQuestions removes "completed_questions" edges to CompletedQuestion entities.
+func (qu *QuestionUpdate) RemoveCompletedQuestions(c ...*CompletedQuestion) *QuestionUpdate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return qu.RemoveCompletedQuestionIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (qu *QuestionUpdate) Save(ctx context.Context) (int, error) {
 	return withHooks(ctx, qu.sqlSave, qu.mutation, qu.hooks)
@@ -281,11 +346,17 @@ func (qu *QuestionUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
+	if value, ok := qu.mutation.Title(); ok {
+		_spec.SetField(question.FieldTitle, field.TypeString, value)
+	}
 	if value, ok := qu.mutation.Text(); ok {
 		_spec.SetField(question.FieldText, field.TypeString, value)
 	}
 	if value, ok := qu.mutation.Head(); ok {
 		_spec.SetField(question.FieldHead, field.TypeBool, value)
+	}
+	if value, ok := qu.mutation.Required(); ok {
+		_spec.SetField(question.FieldRequired, field.TypeBool, value)
 	}
 	if value, ok := qu.mutation.NumOfAnswers(); ok {
 		_spec.SetField(question.FieldNumOfAnswers, field.TypeInt, value)
@@ -447,6 +518,51 @@ func (qu *QuestionUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if qu.mutation.CompletedQuestionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := qu.mutation.RemovedCompletedQuestionsIDs(); len(nodes) > 0 && !qu.mutation.CompletedQuestionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := qu.mutation.CompletedQuestionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if n, err = sqlgraph.UpdateNodes(ctx, qu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{question.Label}
@@ -465,6 +581,20 @@ type QuestionUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *QuestionMutation
+}
+
+// SetTitle sets the "title" field.
+func (quo *QuestionUpdateOne) SetTitle(s string) *QuestionUpdateOne {
+	quo.mutation.SetTitle(s)
+	return quo
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (quo *QuestionUpdateOne) SetNillableTitle(s *string) *QuestionUpdateOne {
+	if s != nil {
+		quo.SetTitle(*s)
+	}
+	return quo
 }
 
 // SetText sets the "text" field.
@@ -491,6 +621,20 @@ func (quo *QuestionUpdateOne) SetHead(b bool) *QuestionUpdateOne {
 func (quo *QuestionUpdateOne) SetNillableHead(b *bool) *QuestionUpdateOne {
 	if b != nil {
 		quo.SetHead(*b)
+	}
+	return quo
+}
+
+// SetRequired sets the "required" field.
+func (quo *QuestionUpdateOne) SetRequired(b bool) *QuestionUpdateOne {
+	quo.mutation.SetRequired(b)
+	return quo
+}
+
+// SetNillableRequired sets the "required" field if the given value is not nil.
+func (quo *QuestionUpdateOne) SetNillableRequired(b *bool) *QuestionUpdateOne {
+	if b != nil {
+		quo.SetRequired(*b)
 	}
 	return quo
 }
@@ -612,6 +756,21 @@ func (quo *QuestionUpdateOne) SetPoll(p *Poll) *QuestionUpdateOne {
 	return quo.SetPollID(p.ID)
 }
 
+// AddCompletedQuestionIDs adds the "completed_questions" edge to the CompletedQuestion entity by IDs.
+func (quo *QuestionUpdateOne) AddCompletedQuestionIDs(ids ...int) *QuestionUpdateOne {
+	quo.mutation.AddCompletedQuestionIDs(ids...)
+	return quo
+}
+
+// AddCompletedQuestions adds the "completed_questions" edges to the CompletedQuestion entity.
+func (quo *QuestionUpdateOne) AddCompletedQuestions(c ...*CompletedQuestion) *QuestionUpdateOne {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return quo.AddCompletedQuestionIDs(ids...)
+}
+
 // Mutation returns the QuestionMutation object of the builder.
 func (quo *QuestionUpdateOne) Mutation() *QuestionMutation {
 	return quo.mutation
@@ -669,6 +828,27 @@ func (quo *QuestionUpdateOne) ClearNextQuestion() *QuestionUpdateOne {
 func (quo *QuestionUpdateOne) ClearPoll() *QuestionUpdateOne {
 	quo.mutation.ClearPoll()
 	return quo
+}
+
+// ClearCompletedQuestions clears all "completed_questions" edges to the CompletedQuestion entity.
+func (quo *QuestionUpdateOne) ClearCompletedQuestions() *QuestionUpdateOne {
+	quo.mutation.ClearCompletedQuestions()
+	return quo
+}
+
+// RemoveCompletedQuestionIDs removes the "completed_questions" edge to CompletedQuestion entities by IDs.
+func (quo *QuestionUpdateOne) RemoveCompletedQuestionIDs(ids ...int) *QuestionUpdateOne {
+	quo.mutation.RemoveCompletedQuestionIDs(ids...)
+	return quo
+}
+
+// RemoveCompletedQuestions removes "completed_questions" edges to CompletedQuestion entities.
+func (quo *QuestionUpdateOne) RemoveCompletedQuestions(c ...*CompletedQuestion) *QuestionUpdateOne {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return quo.RemoveCompletedQuestionIDs(ids...)
 }
 
 // Where appends a list predicates to the QuestionUpdate builder.
@@ -748,11 +928,17 @@ func (quo *QuestionUpdateOne) sqlSave(ctx context.Context) (_node *Question, err
 			}
 		}
 	}
+	if value, ok := quo.mutation.Title(); ok {
+		_spec.SetField(question.FieldTitle, field.TypeString, value)
+	}
 	if value, ok := quo.mutation.Text(); ok {
 		_spec.SetField(question.FieldText, field.TypeString, value)
 	}
 	if value, ok := quo.mutation.Head(); ok {
 		_spec.SetField(question.FieldHead, field.TypeBool, value)
+	}
+	if value, ok := quo.mutation.Required(); ok {
+		_spec.SetField(question.FieldRequired, field.TypeBool, value)
 	}
 	if value, ok := quo.mutation.NumOfAnswers(); ok {
 		_spec.SetField(question.FieldNumOfAnswers, field.TypeInt, value)
@@ -907,6 +1093,51 @@ func (quo *QuestionUpdateOne) sqlSave(ctx context.Context) (_node *Question, err
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(poll.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if quo.mutation.CompletedQuestionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := quo.mutation.RemovedCompletedQuestionsIDs(); len(nodes) > 0 && !quo.mutation.CompletedQuestionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := quo.mutation.CompletedQuestionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

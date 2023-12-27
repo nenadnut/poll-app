@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"math"
+	"poll-app/ent/completedquestion"
 	"poll-app/ent/poll"
 	"poll-app/ent/predicate"
 	"poll-app/ent/question"
@@ -20,15 +21,16 @@ import (
 // QuestionQuery is the builder for querying Question entities.
 type QuestionQuery struct {
 	config
-	ctx                 *QueryContext
-	order               []question.OrderOption
-	inters              []Interceptor
-	predicates          []predicate.Question
-	withOptions         *QuestionOptionQuery
-	withNextQuestionInv *QuestionQuery
-	withNextQuestion    *QuestionQuery
-	withPoll            *PollQuery
-	withFKs             bool
+	ctx                    *QueryContext
+	order                  []question.OrderOption
+	inters                 []Interceptor
+	predicates             []predicate.Question
+	withOptions            *QuestionOptionQuery
+	withNextQuestionInv    *QuestionQuery
+	withNextQuestion       *QuestionQuery
+	withPoll               *PollQuery
+	withCompletedQuestions *CompletedQuestionQuery
+	withFKs                bool
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -146,6 +148,28 @@ func (qq *QuestionQuery) QueryPoll() *PollQuery {
 			sqlgraph.From(question.Table, question.FieldID, selector),
 			sqlgraph.To(poll.Table, poll.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, true, question.PollTable, question.PollColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(qq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCompletedQuestions chains the current query on the "completed_questions" edge.
+func (qq *QuestionQuery) QueryCompletedQuestions() *CompletedQuestionQuery {
+	query := (&CompletedQuestionClient{config: qq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := qq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := qq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(question.Table, question.FieldID, selector),
+			sqlgraph.To(completedquestion.Table, completedquestion.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, question.CompletedQuestionsTable, question.CompletedQuestionsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(qq.driver.Dialect(), step)
 		return fromU, nil
@@ -340,15 +364,16 @@ func (qq *QuestionQuery) Clone() *QuestionQuery {
 		return nil
 	}
 	return &QuestionQuery{
-		config:              qq.config,
-		ctx:                 qq.ctx.Clone(),
-		order:               append([]question.OrderOption{}, qq.order...),
-		inters:              append([]Interceptor{}, qq.inters...),
-		predicates:          append([]predicate.Question{}, qq.predicates...),
-		withOptions:         qq.withOptions.Clone(),
-		withNextQuestionInv: qq.withNextQuestionInv.Clone(),
-		withNextQuestion:    qq.withNextQuestion.Clone(),
-		withPoll:            qq.withPoll.Clone(),
+		config:                 qq.config,
+		ctx:                    qq.ctx.Clone(),
+		order:                  append([]question.OrderOption{}, qq.order...),
+		inters:                 append([]Interceptor{}, qq.inters...),
+		predicates:             append([]predicate.Question{}, qq.predicates...),
+		withOptions:            qq.withOptions.Clone(),
+		withNextQuestionInv:    qq.withNextQuestionInv.Clone(),
+		withNextQuestion:       qq.withNextQuestion.Clone(),
+		withPoll:               qq.withPoll.Clone(),
+		withCompletedQuestions: qq.withCompletedQuestions.Clone(),
 		// clone intermediate query.
 		sql:  qq.sql.Clone(),
 		path: qq.path,
@@ -399,18 +424,29 @@ func (qq *QuestionQuery) WithPoll(opts ...func(*PollQuery)) *QuestionQuery {
 	return qq
 }
 
+// WithCompletedQuestions tells the query-builder to eager-load the nodes that are connected to
+// the "completed_questions" edge. The optional arguments are used to configure the query builder of the edge.
+func (qq *QuestionQuery) WithCompletedQuestions(opts ...func(*CompletedQuestionQuery)) *QuestionQuery {
+	query := (&CompletedQuestionClient{config: qq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	qq.withCompletedQuestions = query
+	return qq
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
 // Example:
 //
 //	var v []struct {
-//		Text string `json:"text,omitempty"`
+//		Title string `json:"title,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.Question.Query().
-//		GroupBy(question.FieldText).
+//		GroupBy(question.FieldTitle).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (qq *QuestionQuery) GroupBy(field string, fields ...string) *QuestionGroupBy {
@@ -428,11 +464,11 @@ func (qq *QuestionQuery) GroupBy(field string, fields ...string) *QuestionGroupB
 // Example:
 //
 //	var v []struct {
-//		Text string `json:"text,omitempty"`
+//		Title string `json:"title,omitempty"`
 //	}
 //
 //	client.Question.Query().
-//		Select(question.FieldText).
+//		Select(question.FieldTitle).
 //		Scan(ctx, &v)
 func (qq *QuestionQuery) Select(fields ...string) *QuestionSelect {
 	qq.ctx.Fields = append(qq.ctx.Fields, fields...)
@@ -478,11 +514,12 @@ func (qq *QuestionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Que
 		nodes       = []*Question{}
 		withFKs     = qq.withFKs
 		_spec       = qq.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [5]bool{
 			qq.withOptions != nil,
 			qq.withNextQuestionInv != nil,
 			qq.withNextQuestion != nil,
 			qq.withPoll != nil,
+			qq.withCompletedQuestions != nil,
 		}
 	)
 	if qq.withNextQuestion != nil {
@@ -532,6 +569,15 @@ func (qq *QuestionQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Que
 	if query := qq.withPoll; query != nil {
 		if err := qq.loadPoll(ctx, query, nodes, nil,
 			func(n *Question, e *Poll) { n.Edges.Poll = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := qq.withCompletedQuestions; query != nil {
+		if err := qq.loadCompletedQuestions(ctx, query, nodes,
+			func(n *Question) { n.Edges.CompletedQuestions = []*CompletedQuestion{} },
+			func(n *Question, e *CompletedQuestion) {
+				n.Edges.CompletedQuestions = append(n.Edges.CompletedQuestions, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -658,6 +704,36 @@ func (qq *QuestionQuery) loadPoll(ctx context.Context, query *PollQuery, nodes [
 		for i := range nodes {
 			assign(nodes[i], n)
 		}
+	}
+	return nil
+}
+func (qq *QuestionQuery) loadCompletedQuestions(ctx context.Context, query *CompletedQuestionQuery, nodes []*Question, init func(*Question), assign func(*Question, *CompletedQuestion)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*Question)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(completedquestion.FieldQuestionID)
+	}
+	query.Where(predicate.CompletedQuestion(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(question.CompletedQuestionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.QuestionID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "question_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }

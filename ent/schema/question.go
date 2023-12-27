@@ -17,8 +17,10 @@ type Question struct {
 // Fields of the Question.
 func (Question) Fields() []ent.Field {
 	return []ent.Field{
+		field.String("title"),
 		field.String("text"),
 		field.Bool("head").Default(false).StructTag(`json:"-"`),
+		field.Bool("required").Default(true),
 		field.Int("num_of_answers").Default(1),
 		field.Time("created_at").Default(time.Now).StructTag(`json:"-"`),
 		field.Time("updated_at").Default(time.Now).StructTag(`json:"-"`),
@@ -34,5 +36,6 @@ func (Question) Edges() []ent.Edge {
 			// Field("next_question_id").
 			From("next_question_inv"),
 		edge.From("poll", Poll.Type).Ref("questions").Field("poll_id").Required().Unique(),
+		edge.To("completed_questions", CompletedQuestion.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }

@@ -14,10 +14,14 @@ const (
 	Label = "question"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldTitle holds the string denoting the title field in the database.
+	FieldTitle = "title"
 	// FieldText holds the string denoting the text field in the database.
 	FieldText = "text"
 	// FieldHead holds the string denoting the head field in the database.
 	FieldHead = "head"
+	// FieldRequired holds the string denoting the required field in the database.
+	FieldRequired = "required"
 	// FieldNumOfAnswers holds the string denoting the num_of_answers field in the database.
 	FieldNumOfAnswers = "num_of_answers"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -34,6 +38,8 @@ const (
 	EdgeNextQuestion = "next_question"
 	// EdgePoll holds the string denoting the poll edge name in mutations.
 	EdgePoll = "poll"
+	// EdgeCompletedQuestions holds the string denoting the completed_questions edge name in mutations.
+	EdgeCompletedQuestions = "completed_questions"
 	// Table holds the table name of the question in the database.
 	Table = "questions"
 	// OptionsTable is the table that holds the options relation/edge.
@@ -58,13 +64,22 @@ const (
 	PollInverseTable = "polls"
 	// PollColumn is the table column denoting the poll relation/edge.
 	PollColumn = "poll_id"
+	// CompletedQuestionsTable is the table that holds the completed_questions relation/edge.
+	CompletedQuestionsTable = "completed_questions"
+	// CompletedQuestionsInverseTable is the table name for the CompletedQuestion entity.
+	// It exists in this package in order to avoid circular dependency with the "completedquestion" package.
+	CompletedQuestionsInverseTable = "completed_questions"
+	// CompletedQuestionsColumn is the table column denoting the completed_questions relation/edge.
+	CompletedQuestionsColumn = "question_id"
 )
 
 // Columns holds all SQL columns for question fields.
 var Columns = []string{
 	FieldID,
+	FieldTitle,
 	FieldText,
 	FieldHead,
+	FieldRequired,
 	FieldNumOfAnswers,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -95,6 +110,8 @@ func ValidColumn(column string) bool {
 var (
 	// DefaultHead holds the default value on creation for the "head" field.
 	DefaultHead bool
+	// DefaultRequired holds the default value on creation for the "required" field.
+	DefaultRequired bool
 	// DefaultNumOfAnswers holds the default value on creation for the "num_of_answers" field.
 	DefaultNumOfAnswers int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -111,6 +128,11 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
 }
 
+// ByTitle orders the results by the title field.
+func ByTitle(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTitle, opts...).ToFunc()
+}
+
 // ByText orders the results by the text field.
 func ByText(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldText, opts...).ToFunc()
@@ -119,6 +141,11 @@ func ByText(opts ...sql.OrderTermOption) OrderOption {
 // ByHead orders the results by the head field.
 func ByHead(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHead, opts...).ToFunc()
+}
+
+// ByRequired orders the results by the required field.
+func ByRequired(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequired, opts...).ToFunc()
 }
 
 // ByNumOfAnswers orders the results by the num_of_answers field.
@@ -182,6 +209,20 @@ func ByPollField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newPollStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByCompletedQuestionsCount orders the results by completed_questions count.
+func ByCompletedQuestionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCompletedQuestionsStep(), opts...)
+	}
+}
+
+// ByCompletedQuestions orders the results by completed_questions terms.
+func ByCompletedQuestions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCompletedQuestionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newOptionsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -208,5 +249,12 @@ func newPollStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PollInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, PollTable, PollColumn),
+	)
+}
+func newCompletedQuestionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CompletedQuestionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, CompletedQuestionsTable, CompletedQuestionsColumn),
 	)
 }

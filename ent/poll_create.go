@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"poll-app/ent/poll"
 	"poll-app/ent/question"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 	"time"
 
@@ -31,20 +32,6 @@ func (pc *PollCreate) SetTitle(s string) *PollCreate {
 // SetDescription sets the "description" field.
 func (pc *PollCreate) SetDescription(s string) *PollCreate {
 	pc.mutation.SetDescription(s)
-	return pc
-}
-
-// SetCompleted sets the "completed" field.
-func (pc *PollCreate) SetCompleted(b bool) *PollCreate {
-	pc.mutation.SetCompleted(b)
-	return pc
-}
-
-// SetNillableCompleted sets the "completed" field if the given value is not nil.
-func (pc *PollCreate) SetNillableCompleted(b *bool) *PollCreate {
-	if b != nil {
-		pc.SetCompleted(*b)
-	}
 	return pc
 }
 
@@ -102,6 +89,21 @@ func (pc *PollCreate) AddQuestions(q ...*Question) *PollCreate {
 	return pc.AddQuestionIDs(ids...)
 }
 
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by IDs.
+func (pc *PollCreate) AddStartedPollIDs(ids ...int) *PollCreate {
+	pc.mutation.AddStartedPollIDs(ids...)
+	return pc
+}
+
+// AddStartedPolls adds the "started_polls" edges to the StartedPoll entity.
+func (pc *PollCreate) AddStartedPolls(s ...*StartedPoll) *PollCreate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return pc.AddStartedPollIDs(ids...)
+}
+
 // Mutation returns the PollMutation object of the builder.
 func (pc *PollCreate) Mutation() *PollMutation {
 	return pc.mutation
@@ -137,10 +139,6 @@ func (pc *PollCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (pc *PollCreate) defaults() {
-	if _, ok := pc.mutation.Completed(); !ok {
-		v := poll.DefaultCompleted
-		pc.mutation.SetCompleted(v)
-	}
 	if _, ok := pc.mutation.CreatedAt(); !ok {
 		v := poll.DefaultCreatedAt()
 		pc.mutation.SetCreatedAt(v)
@@ -158,9 +156,6 @@ func (pc *PollCreate) check() error {
 	}
 	if _, ok := pc.mutation.Description(); !ok {
 		return &ValidationError{Name: "description", err: errors.New(`ent: missing required field "Poll.description"`)}
-	}
-	if _, ok := pc.mutation.Completed(); !ok {
-		return &ValidationError{Name: "completed", err: errors.New(`ent: missing required field "Poll.completed"`)}
 	}
 	if _, ok := pc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Poll.created_at"`)}
@@ -208,10 +203,6 @@ func (pc *PollCreate) createSpec() (*Poll, *sqlgraph.CreateSpec) {
 		_spec.SetField(poll.FieldDescription, field.TypeString, value)
 		_node.Description = value
 	}
-	if value, ok := pc.mutation.Completed(); ok {
-		_spec.SetField(poll.FieldCompleted, field.TypeBool, value)
-		_node.Completed = value
-	}
 	if value, ok := pc.mutation.CreatedAt(); ok {
 		_spec.SetField(poll.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
@@ -246,6 +237,22 @@ func (pc *PollCreate) createSpec() (*Poll, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(question.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := pc.mutation.StartedPollsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   poll.StartedPollsTable,
+			Columns: []string{poll.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -18,10 +18,14 @@ type Question struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
+	// Title holds the value of the "title" field.
+	Title string `json:"title,omitempty"`
 	// Text holds the value of the "text" field.
 	Text string `json:"text,omitempty"`
 	// Head holds the value of the "head" field.
 	Head bool `json:"-"`
+	// Required holds the value of the "required" field.
+	Required bool `json:"required,omitempty"`
 	// NumOfAnswers holds the value of the "num_of_answers" field.
 	NumOfAnswers int `json:"num_of_answers,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -47,9 +51,11 @@ type QuestionEdges struct {
 	NextQuestion *Question `json:"next_question,omitempty"`
 	// Poll holds the value of the poll edge.
 	Poll *Poll `json:"poll,omitempty"`
+	// CompletedQuestions holds the value of the completed_questions edge.
+	CompletedQuestions []*CompletedQuestion `json:"completed_questions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [5]bool
 }
 
 // OptionsOrErr returns the Options value or an error if the edge
@@ -96,16 +102,25 @@ func (e QuestionEdges) PollOrErr() (*Poll, error) {
 	return nil, &NotLoadedError{edge: "poll"}
 }
 
+// CompletedQuestionsOrErr returns the CompletedQuestions value or an error if the edge
+// was not loaded in eager-loading.
+func (e QuestionEdges) CompletedQuestionsOrErr() ([]*CompletedQuestion, error) {
+	if e.loadedTypes[4] {
+		return e.CompletedQuestions, nil
+	}
+	return nil, &NotLoadedError{edge: "completed_questions"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Question) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case question.FieldHead:
+		case question.FieldHead, question.FieldRequired:
 			values[i] = new(sql.NullBool)
 		case question.FieldID, question.FieldNumOfAnswers, question.FieldPollID:
 			values[i] = new(sql.NullInt64)
-		case question.FieldText:
+		case question.FieldTitle, question.FieldText:
 			values[i] = new(sql.NullString)
 		case question.FieldCreatedAt, question.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -132,6 +147,12 @@ func (q *Question) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			q.ID = int(value.Int64)
+		case question.FieldTitle:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field title", values[i])
+			} else if value.Valid {
+				q.Title = value.String
+			}
 		case question.FieldText:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field text", values[i])
@@ -143,6 +164,12 @@ func (q *Question) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field head", values[i])
 			} else if value.Valid {
 				q.Head = value.Bool
+			}
+		case question.FieldRequired:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field required", values[i])
+			} else if value.Valid {
+				q.Required = value.Bool
 			}
 		case question.FieldNumOfAnswers:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -208,6 +235,11 @@ func (q *Question) QueryPoll() *PollQuery {
 	return NewQuestionClient(q.config).QueryPoll(q)
 }
 
+// QueryCompletedQuestions queries the "completed_questions" edge of the Question entity.
+func (q *Question) QueryCompletedQuestions() *CompletedQuestionQuery {
+	return NewQuestionClient(q.config).QueryCompletedQuestions(q)
+}
+
 // Update returns a builder for updating this Question.
 // Note that you need to call Question.Unwrap() before calling this method if this Question
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -231,11 +263,17 @@ func (q *Question) String() string {
 	var builder strings.Builder
 	builder.WriteString("Question(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", q.ID))
+	builder.WriteString("title=")
+	builder.WriteString(q.Title)
+	builder.WriteString(", ")
 	builder.WriteString("text=")
 	builder.WriteString(q.Text)
 	builder.WriteString(", ")
 	builder.WriteString("head=")
 	builder.WriteString(fmt.Sprintf("%v", q.Head))
+	builder.WriteString(", ")
+	builder.WriteString("required=")
+	builder.WriteString(fmt.Sprintf("%v", q.Required))
 	builder.WriteString(", ")
 	builder.WriteString("num_of_answers=")
 	builder.WriteString(fmt.Sprintf("%v", q.NumOfAnswers))

@@ -27,20 +27,6 @@ func (qoc *QuestionOptionCreate) SetText(s string) *QuestionOptionCreate {
 	return qoc
 }
 
-// SetChosen sets the "chosen" field.
-func (qoc *QuestionOptionCreate) SetChosen(b bool) *QuestionOptionCreate {
-	qoc.mutation.SetChosen(b)
-	return qoc
-}
-
-// SetNillableChosen sets the "chosen" field if the given value is not nil.
-func (qoc *QuestionOptionCreate) SetNillableChosen(b *bool) *QuestionOptionCreate {
-	if b != nil {
-		qoc.SetChosen(*b)
-	}
-	return qoc
-}
-
 // SetCreatedAt sets the "created_at" field.
 func (qoc *QuestionOptionCreate) SetCreatedAt(t time.Time) *QuestionOptionCreate {
 	qoc.mutation.SetCreatedAt(t)
@@ -153,10 +139,6 @@ func (qoc *QuestionOptionCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (qoc *QuestionOptionCreate) defaults() {
-	if _, ok := qoc.mutation.Chosen(); !ok {
-		v := questionoption.DefaultChosen
-		qoc.mutation.SetChosen(v)
-	}
 	if _, ok := qoc.mutation.CreatedAt(); !ok {
 		v := questionoption.DefaultCreatedAt()
 		qoc.mutation.SetCreatedAt(v)
@@ -171,9 +153,6 @@ func (qoc *QuestionOptionCreate) defaults() {
 func (qoc *QuestionOptionCreate) check() error {
 	if _, ok := qoc.mutation.Text(); !ok {
 		return &ValidationError{Name: "text", err: errors.New(`ent: missing required field "QuestionOption.text"`)}
-	}
-	if _, ok := qoc.mutation.Chosen(); !ok {
-		return &ValidationError{Name: "chosen", err: errors.New(`ent: missing required field "QuestionOption.chosen"`)}
 	}
 	if _, ok := qoc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "QuestionOption.created_at"`)}
@@ -216,10 +195,6 @@ func (qoc *QuestionOptionCreate) createSpec() (*QuestionOption, *sqlgraph.Create
 	if value, ok := qoc.mutation.Text(); ok {
 		_spec.SetField(questionoption.FieldText, field.TypeString, value)
 		_node.Text = value
-	}
-	if value, ok := qoc.mutation.Chosen(); ok {
-		_spec.SetField(questionoption.FieldChosen, field.TypeBool, value)
-		_node.Chosen = value
 	}
 	if value, ok := qoc.mutation.CreatedAt(); ok {
 		_spec.SetField(questionoption.FieldCreatedAt, field.TypeTime, value)

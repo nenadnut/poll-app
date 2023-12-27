@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"poll-app/ent/poll"
+	"poll-app/ent/startedpoll"
 	"poll-app/ent/user"
 	"time"
 
@@ -100,6 +101,21 @@ func (uc *UserCreate) AddPolls(p ...*Poll) *UserCreate {
 		ids[i] = p[i].ID
 	}
 	return uc.AddPollIDs(ids...)
+}
+
+// AddStartedPollIDs adds the "started_polls" edge to the StartedPoll entity by IDs.
+func (uc *UserCreate) AddStartedPollIDs(ids ...int) *UserCreate {
+	uc.mutation.AddStartedPollIDs(ids...)
+	return uc
+}
+
+// AddStartedPolls adds the "started_polls" edges to the StartedPoll entity.
+func (uc *UserCreate) AddStartedPolls(s ...*StartedPoll) *UserCreate {
+	ids := make([]int, len(s))
+	for i := range s {
+		ids[i] = s[i].ID
+	}
+	return uc.AddStartedPollIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -242,6 +258,22 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(poll.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.StartedPollsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.StartedPollsTable,
+			Columns: []string{user.StartedPollsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(startedpoll.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

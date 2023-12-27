@@ -16,8 +16,6 @@ const (
 	FieldID = "id"
 	// FieldText holds the string denoting the text field in the database.
 	FieldText = "text"
-	// FieldChosen holds the string denoting the chosen field in the database.
-	FieldChosen = "chosen"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -53,7 +51,6 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldText,
-	FieldChosen,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldQuestionID,
@@ -81,8 +78,6 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// DefaultChosen holds the default value on creation for the "chosen" field.
-	DefaultChosen bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -100,11 +95,6 @@ func ByID(opts ...sql.OrderTermOption) OrderOption {
 // ByText orders the results by the text field.
 func ByText(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldText, opts...).ToFunc()
-}
-
-// ByChosen orders the results by the chosen field.
-func ByChosen(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldChosen, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -20,8 +20,6 @@ type QuestionOption struct {
 	ID int `json:"id,omitempty"`
 	// Text holds the value of the "text" field.
 	Text string `json:"text,omitempty"`
-	// Chosen holds the value of the "chosen" field.
-	Chosen bool `json:"chosen,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"-"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -92,8 +90,6 @@ func (*QuestionOption) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case questionoption.FieldChosen:
-			values[i] = new(sql.NullBool)
 		case questionoption.FieldID, questionoption.FieldQuestionID:
 			values[i] = new(sql.NullInt64)
 		case questionoption.FieldText:
@@ -128,12 +124,6 @@ func (qo *QuestionOption) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field text", values[i])
 			} else if value.Valid {
 				qo.Text = value.String
-			}
-		case questionoption.FieldChosen:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field chosen", values[i])
-			} else if value.Valid {
-				qo.Chosen = value.Bool
 			}
 		case questionoption.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -213,9 +203,6 @@ func (qo *QuestionOption) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", qo.ID))
 	builder.WriteString("text=")
 	builder.WriteString(qo.Text)
-	builder.WriteString(", ")
-	builder.WriteString("chosen=")
-	builder.WriteString(fmt.Sprintf("%v", qo.Chosen))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(qo.CreatedAt.Format(time.ANSIC))

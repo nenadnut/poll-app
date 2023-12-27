@@ -60,11 +60,6 @@ func Text(v string) predicate.QuestionOption {
 	return predicate.QuestionOption(sql.FieldEQ(FieldText, v))
 }
 
-// Chosen applies equality check predicate on the "chosen" field. It's identical to ChosenEQ.
-func Chosen(v bool) predicate.QuestionOption {
-	return predicate.QuestionOption(sql.FieldEQ(FieldChosen, v))
-}
-
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.QuestionOption {
 	return predicate.QuestionOption(sql.FieldEQ(FieldCreatedAt, v))
@@ -143,16 +138,6 @@ func TextEqualFold(v string) predicate.QuestionOption {
 // TextContainsFold applies the ContainsFold predicate on the "text" field.
 func TextContainsFold(v string) predicate.QuestionOption {
 	return predicate.QuestionOption(sql.FieldContainsFold(FieldText, v))
-}
-
-// ChosenEQ applies the EQ predicate on the "chosen" field.
-func ChosenEQ(v bool) predicate.QuestionOption {
-	return predicate.QuestionOption(sql.FieldEQ(FieldChosen, v))
-}
-
-// ChosenNEQ applies the NEQ predicate on the "chosen" field.
-func ChosenNEQ(v bool) predicate.QuestionOption {
-	return predicate.QuestionOption(sql.FieldNEQ(FieldChosen, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

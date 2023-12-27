@@ -1,23 +1,54 @@
+completed-polls/{pollId
+}/stats
+{
+    "poll_id": "dfdfd",
+    "votes": [
+        {
+            "question_id": 1,
+            "options": [
+                {
+                    "id": 1,
+                    "text": "fss",
+                    "count": 12345
+                }
+            ]
+        },
+        {
+            "question_id": 2,
+            "options": [
+                {
+                    "id": 2,
+                    "text": "fss 2",
+                    "count": 123456
+                }
+            ]
+        }
+    ]
+}
 
 
-PUT /polls/{id
-}/questions/{id
+completed-polls/{pollId
+}/stats/questions/{questionId
+}
+
+
+completed-polls/{pollId
+}/stats/questions/{questionId
+}/options/{optionId
 }
 
 {
-    "text": "Blabla",
-    "options": [
+    "pollId": 1,
+    "questionId": 2,
+    "optionId": 1,
+    "voters": [
         {
-            "text": "Blabla"
+            "id": 1,
+            "user": "Pera Peric"
         },
         {
-            "text": "Blabla 2"
-        },
-        {
-            "text": "Blabla 3"
-        },
-        {
-            "text": "Blabla 4"
+            "id": 2,
+            "user": "Mika Mikic"
         },
     ]
 }

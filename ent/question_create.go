@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"poll-app/ent/completedquestion"
 	"poll-app/ent/poll"
 	"poll-app/ent/question"
 	"poll-app/ent/questionoption"
@@ -20,6 +21,12 @@ type QuestionCreate struct {
 	config
 	mutation *QuestionMutation
 	hooks    []Hook
+}
+
+// SetTitle sets the "title" field.
+func (qc *QuestionCreate) SetTitle(s string) *QuestionCreate {
+	qc.mutation.SetTitle(s)
+	return qc
 }
 
 // SetText sets the "text" field.
@@ -38,6 +45,20 @@ func (qc *QuestionCreate) SetHead(b bool) *QuestionCreate {
 func (qc *QuestionCreate) SetNillableHead(b *bool) *QuestionCreate {
 	if b != nil {
 		qc.SetHead(*b)
+	}
+	return qc
+}
+
+// SetRequired sets the "required" field.
+func (qc *QuestionCreate) SetRequired(b bool) *QuestionCreate {
+	qc.mutation.SetRequired(b)
+	return qc
+}
+
+// SetNillableRequired sets the "required" field if the given value is not nil.
+func (qc *QuestionCreate) SetNillableRequired(b *bool) *QuestionCreate {
+	if b != nil {
+		qc.SetRequired(*b)
 	}
 	return qc
 }
@@ -144,6 +165,21 @@ func (qc *QuestionCreate) SetPoll(p *Poll) *QuestionCreate {
 	return qc.SetPollID(p.ID)
 }
 
+// AddCompletedQuestionIDs adds the "completed_questions" edge to the CompletedQuestion entity by IDs.
+func (qc *QuestionCreate) AddCompletedQuestionIDs(ids ...int) *QuestionCreate {
+	qc.mutation.AddCompletedQuestionIDs(ids...)
+	return qc
+}
+
+// AddCompletedQuestions adds the "completed_questions" edges to the CompletedQuestion entity.
+func (qc *QuestionCreate) AddCompletedQuestions(c ...*CompletedQuestion) *QuestionCreate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return qc.AddCompletedQuestionIDs(ids...)
+}
+
 // Mutation returns the QuestionMutation object of the builder.
 func (qc *QuestionCreate) Mutation() *QuestionMutation {
 	return qc.mutation
@@ -183,6 +219,10 @@ func (qc *QuestionCreate) defaults() {
 		v := question.DefaultHead
 		qc.mutation.SetHead(v)
 	}
+	if _, ok := qc.mutation.Required(); !ok {
+		v := question.DefaultRequired
+		qc.mutation.SetRequired(v)
+	}
 	if _, ok := qc.mutation.NumOfAnswers(); !ok {
 		v := question.DefaultNumOfAnswers
 		qc.mutation.SetNumOfAnswers(v)
@@ -199,11 +239,17 @@ func (qc *QuestionCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (qc *QuestionCreate) check() error {
+	if _, ok := qc.mutation.Title(); !ok {
+		return &ValidationError{Name: "title", err: errors.New(`ent: missing required field "Question.title"`)}
+	}
 	if _, ok := qc.mutation.Text(); !ok {
 		return &ValidationError{Name: "text", err: errors.New(`ent: missing required field "Question.text"`)}
 	}
 	if _, ok := qc.mutation.Head(); !ok {
 		return &ValidationError{Name: "head", err: errors.New(`ent: missing required field "Question.head"`)}
+	}
+	if _, ok := qc.mutation.Required(); !ok {
+		return &ValidationError{Name: "required", err: errors.New(`ent: missing required field "Question.required"`)}
 	}
 	if _, ok := qc.mutation.NumOfAnswers(); !ok {
 		return &ValidationError{Name: "num_of_answers", err: errors.New(`ent: missing required field "Question.num_of_answers"`)}
@@ -246,6 +292,10 @@ func (qc *QuestionCreate) createSpec() (*Question, *sqlgraph.CreateSpec) {
 		_node = &Question{config: qc.config}
 		_spec = sqlgraph.NewCreateSpec(question.Table, sqlgraph.NewFieldSpec(question.FieldID, field.TypeInt))
 	)
+	if value, ok := qc.mutation.Title(); ok {
+		_spec.SetField(question.FieldTitle, field.TypeString, value)
+		_node.Title = value
+	}
 	if value, ok := qc.mutation.Text(); ok {
 		_spec.SetField(question.FieldText, field.TypeString, value)
 		_node.Text = value
@@ -253,6 +303,10 @@ func (qc *QuestionCreate) createSpec() (*Question, *sqlgraph.CreateSpec) {
 	if value, ok := qc.mutation.Head(); ok {
 		_spec.SetField(question.FieldHead, field.TypeBool, value)
 		_node.Head = value
+	}
+	if value, ok := qc.mutation.Required(); ok {
+		_spec.SetField(question.FieldRequired, field.TypeBool, value)
+		_node.Required = value
 	}
 	if value, ok := qc.mutation.NumOfAnswers(); ok {
 		_spec.SetField(question.FieldNumOfAnswers, field.TypeInt, value)
@@ -330,6 +384,22 @@ func (qc *QuestionCreate) createSpec() (*Question, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.PollID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := qc.mutation.CompletedQuestionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   question.CompletedQuestionsTable,
+			Columns: []string{question.CompletedQuestionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(completedquestion.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

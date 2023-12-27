@@ -19,7 +19,6 @@ func (Poll) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("title"),
 		field.String("description"),
-		field.Bool("completed").Default(false),
 		field.Time("created_at").Default(time.Now).StructTag(`json:"-"`),
 		field.Time("updated_at").Default(time.Now).StructTag(`json:"-"`),
 		field.Int("creator_id"),
@@ -31,5 +30,6 @@ func (Poll) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.From("creator", User.Type).Ref("polls").Field("creator_id").Required().Unique(),
 		edge.To("questions", Question.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("started_polls", StartedPoll.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }

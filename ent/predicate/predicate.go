@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// CompletedQuestion is the predicate function for completedquestion builders.
+type CompletedQuestion func(*sql.Selector)
+
 // Poll is the predicate function for poll builders.
 type Poll func(*sql.Selector)
 
@@ -14,6 +17,9 @@ type Question func(*sql.Selector)
 
 // QuestionOption is the predicate function for questionoption builders.
 type QuestionOption func(*sql.Selector)
+
+// StartedPoll is the predicate function for startedpoll builders.
+type StartedPoll func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)

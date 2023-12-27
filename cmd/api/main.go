@@ -15,15 +15,16 @@ import (
 const port = 1234
 
 type application struct {
-	Port               int
-	PersistenceContext *repository.PersistenceContext
+	port               int
+	persistenceContext *repository.PersistenceContext
+	auth               *Auth
 }
 
 func createUser(app *application) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	user, err := app.PersistenceContext.UserPersistence.Client().User.
+	user, err := app.persistenceContext.UserPersistence.Client().User.
 		Create().
 		SetFirstName("admin").
 		SetLastName("admin").
@@ -58,11 +59,11 @@ func main() {
 	client := openConnection()
 
 	app := application{
-		Port:               port,
-		PersistenceContext: repository.New(client),
+		port:               port,
+		persistenceContext: repository.New(client),
 	}
 
-	log.Printf("Starting a server at port %d", app.Port)
+	log.Printf("Starting a server at port %d", app.port)
 	createUser(&app)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.Port), app.router()))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.port), app.router()))
 }
