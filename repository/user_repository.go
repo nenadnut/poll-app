@@ -8,5 +8,6 @@ import (
 type UserRepository interface {
 	Client() *ent.Client
 	Save(userData *ent.UserCreate) (*ent.User, error)
+	FindByID(id int) (*ent.User, error)
 	FindByEmail(email string) (*ent.User, error)
 }

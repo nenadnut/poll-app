@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"poll-app/utils"
 	"strconv"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -572,23 +574,147 @@ func (app *application) AnswerQuestion(w http.ResponseWriter, r *http.Request, p
 }
 
 func (app *application) GetPollStats(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	pollID := 2
+	log.Println("Completing a poll...", params.ByName("pollId"))
 
-	app.persistenceContext.StatsPersistence.GetPollStats(pollID)
+	pollID, err := strconv.Atoi(params.ByName("pollId"))
+	if err != nil {
+		log.Println("Unable to extract the id parameter", err)
+		utils.ErrorJSON(w, err, 400)
+		return
+	}
+
+	log.Println("Get poll stats[id = {}]", pollID)
+	stats, err := app.persistenceContext.StatsPersistence.GetPollStats(pollID)
+
+	if err != nil {
+		log.Printf("failed to get the stats: %s", err)
+		utils.ErrorJSON(w, err)
+		return
+	}
+
+	utils.WriteJSON(w, 200, stats)
 }
 
-/// Question stats ////
+func (app *application) GetOptionStats(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	log.Println("Fetching the option stats...", params.ByName("optionId"))
 
-/// Per user stats who clicked on which option
+	optionID, err := strconv.Atoi(params.ByName("optionId"))
+	if err != nil {
+		log.Println("Unable to extract the id parameter", err)
+		utils.ErrorJSON(w, err, 400)
+		return
+	}
 
-//// ----
+	log.Println("Get option stats[id = {}]", optionID)
+	stats, err := app.persistenceContext.StatsPersistence.GetOptionStats(optionID)
 
-///// Question answers ////
+	if err != nil {
+		log.Printf("failed to get the stats: %s", err)
+		utils.ErrorJSON(w, err)
+		return
+	}
 
-//// See poll stats /////
+	utils.WriteJSON(w, 200, stats)
+}
 
-//// Get result of poll /////
+func (app *application) authenticate(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	// read a JSON payload
+	var requestPayload struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 
-//// Check poll answer stats ////
+	err := utils.ReadJSON(w, r, &requestPayload)
+	if err != nil {
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
 
-// login
+	// validate user against database
+	user, err := app.persistenceContext.UserPersistence.FindByEmail(requestPayload.Email)
+	if err != nil {
+		utils.ErrorJSON(w, errors.New("Invalid credentials"), http.StatusBadRequest)
+	}
+
+	// check password
+	valid, err := PasswordMatches(user, requestPayload.Password)
+	if err != nil || !valid {
+		utils.ErrorJSON(w, errors.New("Invalid credentials"), http.StatusBadRequest)
+		return
+	}
+
+	// create a JWT user
+	u := JWTUser{
+		ID:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+	}
+
+	// generate tokens
+	tokens, err := app.auth.GenerateTokenPair(&u)
+	if err != nil {
+		utils.ErrorJSON(w, err)
+		return
+	}
+
+	// JWT were used to be stored in local storage years back, but upon many security issues that raised up, so we are moving it to a cookie
+	// The only secure way to do it is to store it as a variable in JavaScript
+	refreshCookie := app.auth.GetRefreshCookie(tokens.RefreshToken)
+	http.SetCookie(w, refreshCookie)
+
+	utils.WriteJSON(w, http.StatusAccepted, tokens)
+}
+
+// call this endpoint when the user comes to the page and it doesn't have a jwt token in their JS code
+func (app *application) refreshToken(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	// we need to go through cookies and find the refresh token cookie
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == app.auth.CookieName {
+			claims := &Claims{}
+			refreshToken := cookie.Value
+
+			// parse the token to get the claims
+			_, err := jwt.ParseWithClaims(refreshToken, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte(app.JWTSecret), nil
+			})
+
+			if err != nil {
+				utils.ErrorJSON(w, errors.New("Unauthorized"), http.StatusUnauthorized)
+				return
+			}
+
+			// get the user ID from the token claims
+			userID, err := strconv.Atoi(claims.Subject)
+			if err != nil {
+				utils.ErrorJSON(w, err, http.StatusUnauthorized)
+				return
+			}
+
+			user, err := app.persistenceContext.UserPersistence.FindByID(userID)
+			if err != nil {
+				utils.ErrorJSON(w, errors.New("unkknown user"), http.StatusUnauthorized)
+				return
+			}
+
+			u := JWTUser{
+				ID:        user.ID,
+				FirstName: user.FirstName,
+				LastName:  user.LastName,
+			}
+
+			tokenPair, err := app.auth.GenerateTokenPair(&u)
+			if err != nil {
+				utils.ErrorJSON(w, errors.New("Error generating tokens"), http.StatusUnauthorized)
+				return
+			}
+
+			http.SetCookie(w, app.auth.GetRefreshCookie(tokenPair.RefreshToken))
+			utils.WriteJSON(w, http.StatusOK, tokenPair)
+		}
+	}
+}
+
+func (app *application) logout(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+	http.SetCookie(w, app.auth.GetExpiredRefreshCookie())
+	w.WriteHeader(http.StatusAccepted)
+}

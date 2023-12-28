@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"poll-app/ent"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Auth struct {
@@ -166,4 +168,21 @@ func (j *Auth) VerifyToken(w http.ResponseWriter, r *http.Request) (string, *Cla
 
 	return token, claims, nil
 
+}
+
+// PasswordMatches checks whether the passwords match (by hashing them)
+func PasswordMatches(u *ent.User, plainTextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(plainTextPassword))
+
+	if err != nil {
+		switch {
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword): // invalid password
+			return false, nil
+
+		default:
+			return false, err
+		}
+	}
+
+	return true, nil
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"net/http"
+
+	"github.com/julienschmidt/httprouter"
 )
 
 // Middelware is the component that is executed on every request
@@ -21,8 +23,8 @@ func (app *application) enableCORS(h http.Handler) http.Handler {
 	})
 }
 
-func (app *application) authRequired(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (app *application) authRequired(next httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		_, _, err := app.auth.VerifyToken(w, r)
 
 		if err != nil {
@@ -30,6 +32,6 @@ func (app *application) authRequired(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
-	})
+		next(w, r, ps)
+	}
 }

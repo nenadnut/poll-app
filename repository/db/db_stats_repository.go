@@ -2,11 +2,16 @@ package db
 
 import (
 	"context"
-	"log"
 	"poll-app/ent"
 	"poll-app/ent/completedquestion"
+	"poll-app/ent/poll"
 	"poll-app/ent/questionoption"
 	"poll-app/ent/startedpoll"
+	"poll-app/ent/user"
+	"poll-app/internal/models"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqljson"
 )
 
 // StatsPersistence is a concrete implementation type of the StatsRepository
@@ -19,68 +24,117 @@ func (db *StatsPersistence) Client() *ent.Client {
 	return db.PersistenceClient
 }
 
-func (db *StatsPersistence) GetPollStats(pollID int) {
+func (db *StatsPersistence) GetPollStats(pollID int) (*models.PollStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	completedPolls, err := db.Client().StartedPoll.Query().
-		Where(startedpoll.PollID(pollID)).
+	poll, err := db.Client().Poll.Query().
+		Where(poll.ID(pollID)).
+		Only(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// pollTitle := poll.Title
+	questionQuery := poll.QueryQuestions()
+	// all questions
+	questions, err := questionQuery.Order(ent.Asc("created_at")).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// all options
+	options, err := questionQuery.QueryOptions().All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// answered questions
+	answeredQuestions, err := poll.
+		QueryStartedPolls().
 		Where(startedpoll.Completed(true)).
+		QueryCompletedQuestions().
 		All(ctx)
-
 	if err != nil {
-		log.Println(err)
-	}
-
-	// extracting the poll ids
-	var completedPollIDs []int
-	for _, completedPoll := range completedPolls {
-		completedPollIDs = append(completedPollIDs, completedPoll.ID)
-	}
-
-	answeredQuestions, err := db.Client().CompletedQuestion.Query().
-		Where(completedquestion.StartedPollIDIn(completedPollIDs...)).
-		All(ctx)
-
-	// extract question ids
-	var questionIds []int
-	// questionTitles := make(map[int]string)
-
-	for _, question := range answeredQuestions {
-		questionIds = append(questionIds, question.QuestionID)
-		// if _, ok := questionTitles[question.QuestionID]; !ok {
-		// 	questionTitles[question.QuestionID] = question.QueryQuestion().Where()
-
-		// }
-	}
-
-	log.Println(questionIds)
-
-	// extract all possible question options
-	options, err := db.Client().QuestionOption.
-		Query().
-		Where(questionoption.QuestionIDIn(questionIds...)).
-		All(ctx)
-
-	if err != nil {
-		log.Println(err)
+		return nil, err
 	}
 
 	// questionId -> option -> counter
-	statsMap := make(map[int]map[int]int)
+	statsMap := make(map[int]map[int]models.OptionStats)
 	for _, option := range options {
-		statsMap[option.QuestionID] = make(map[int]int)
-		statsMap[option.QuestionID][option.ID] = 0
-	}
+		if _, ok := statsMap[option.QuestionID]; !ok {
+			statsMap[option.QuestionID] = make(map[int]models.OptionStats)
+		}
 
-	log.Println(statsMap)
+		statsMap[option.QuestionID][option.ID] = models.OptionStats{
+			ID:    option.ID,
+			Text:  option.Text,
+			Count: 0,
+		}
+	}
 
 	// make a counting updates
 	for _, question := range answeredQuestions {
 		for _, answer := range question.Answers {
-			statsMap[question.QuestionID][answer]++
+			if entry, ok := statsMap[question.QuestionID][answer]; ok {
+				entry.Count++
+				statsMap[question.QuestionID][answer] = entry
+			}
 		}
 	}
 
-	log.Println(statsMap)
+	var questionStats []models.QuestionStats
+	for _, question := range questions {
+		var optionsStats []models.OptionStats
+		for _, option := range statsMap[question.ID] {
+			optionsStats = append(optionsStats, option)
+		}
+
+		questionStats = append(questionStats, models.QuestionStats{
+			ID:      question.ID,
+			Title:   question.Title,
+			Options: optionsStats,
+		})
+	}
+
+	var statsResponse models.PollStats
+	statsResponse.ID = poll.ID
+	statsResponse.Title = poll.Title
+	statsResponse.Votes = questionStats
+
+	return &statsResponse, nil
+}
+
+func (db *StatsPersistence) GetOptionStats(optionID int) (*models.OptionUserVoteStats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	var userInfos []models.OptionUserVote
+	option, err := db.Client().QuestionOption.Query().
+		Where(questionoption.ID(optionID)).
+		Only(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.Client().CompletedQuestion.Query().
+		Where(func(s *sql.Selector) {
+			s.Where(sqljson.ValueContains(completedquestion.FieldAnswers, optionID))
+		}).
+		QueryStartedPoll().
+		QueryUser().
+		Select(user.FieldID, user.FieldFirstName, user.FieldLastName).
+		Scan(ctx, &userInfos)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.OptionUserVoteStats{
+		ID:    optionID,
+		Text:  option.Text,
+		Votes: userInfos,
+	}, nil
 }

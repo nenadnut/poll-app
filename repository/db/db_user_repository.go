@@ -51,3 +51,19 @@ func (db *UserPersistence) FindByEmail(email string) (*ent.User, error) {
 
 	return user, nil
 }
+
+// FindByID fetches a user by id
+func (db *UserPersistence) FindByID(id int) (*ent.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	user, err := db.Client().User.Query().
+		Where(user.ID(id)).
+		Only(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed fetching a user by id %d: %w", id, err)
+	}
+
+	return user, nil
+}
