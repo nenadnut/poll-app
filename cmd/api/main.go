@@ -67,6 +67,7 @@ func openConnection(connectionString string) *ent.Client {
 
 func main() {
 	var host, username, password string
+	var jwtSecret, jwtIssuer, jwtAudience, cookieDomain string
 
 	flag.StringVar(
 		&host,
@@ -89,43 +90,49 @@ func main() {
 		"db user's password",
 	)
 
-	connectionString := fmt.Sprintf("host=%s port=5432 user=%s password=%s dbname=poll sslmode=disable timezone=UTC connect_timeout=5", host, username, password)
-
-	log.Println("Connecting to the database...")
-	client := openConnection(connectionString)
-
-	app := application{
-		port:               port,
-		persistenceContext: repository.New(client),
-	}
-
 	flag.StringVar(
-		&app.JWTSecret,
+		&jwtSecret,
 		"jwt-secret",
 		"veryverysecret",
 		"signing secret",
 	)
 
 	flag.StringVar(
-		&app.JWTIssuer,
+		&jwtIssuer,
 		"jwt-issuer",
 		"example.com",
 		"signing-issuer",
 	)
 
 	flag.StringVar(
-		&app.JWTAudience,
+		&jwtAudience,
 		"jwt-audience",
 		"example.com",
 		"signing audience ",
 	)
 
 	flag.StringVar(
-		&app.CookieDomain,
+		&cookieDomain,
 		"cookie-domain",
 		"localhost",
 		"cookie domain",
 	)
+
+	flag.Parse()
+
+	connectionString := fmt.Sprintf("host=%s port=5432 user=%s password=%s dbname=poll sslmode=disable timezone=UTC connect_timeout=5", host, username, password)
+
+	log.Printf("Connecting to the database - %s...", connectionString)
+	client := openConnection(connectionString)
+
+	app := application{
+		port:               port,
+		persistenceContext: repository.New(client),
+		JWTSecret:          jwtSecret,
+		JWTIssuer:          jwtIssuer,
+		JWTAudience:        jwtAudience,
+		CookieDomain:       cookieDomain,
+	}
 
 	app.auth = Auth{
 		Issuer:        app.JWTIssuer,
@@ -137,7 +144,7 @@ func main() {
 		CookieDomain:  app.CookieDomain,
 		CookieName:    "__Host-refresh-token",
 	}
-	flag.Parse()
+
 	log.Printf("Starting a server at port %d", app.port)
 	createUser(&app)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", app.port), app.router()))
