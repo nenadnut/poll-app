@@ -51,8 +51,8 @@ func createUser(app *application) {
 	}
 }
 
-func openConnection() *ent.Client {
-	client, err := ent.Open("postgres", "host=localhost port=5432 user=postgres password=postgres dbname=poll sslmode=disable timezone=UTC connect_timeout=5")
+func openConnection(connectionString string) *ent.Client {
+	client, err := ent.Open("postgres", connectionString)
 	if err != nil {
 		log.Fatalf("failed opening connection to postgres: %v", err)
 	}
@@ -66,9 +66,33 @@ func openConnection() *ent.Client {
 }
 
 func main() {
+	var host, username, password string
+
+	flag.StringVar(
+		&host,
+		"host",
+		"localhost",
+		"db host",
+	)
+
+	flag.StringVar(
+		&username,
+		"username",
+		"poll",
+		"db user",
+	)
+
+	flag.StringVar(
+		&password,
+		"password",
+		"pass123",
+		"db user's password",
+	)
+
+	connectionString := fmt.Sprintf("host=%s port=5432 user=%s password=%s dbname=poll sslmode=disable timezone=UTC connect_timeout=5", host, username, password)
 
 	log.Println("Connecting to the database...")
-	client := openConnection()
+	client := openConnection(connectionString)
 
 	app := application{
 		port:               port,
@@ -102,13 +126,6 @@ func main() {
 		"localhost",
 		"cookie domain",
 	)
-
-	// flag.StringVar(
-	// 	&app.Domain,
-	// 	"domain",
-	// 	"example.com",
-	// 	"sdomain",
-	// )
 
 	app.auth = Auth{
 		Issuer:        app.JWTIssuer,
